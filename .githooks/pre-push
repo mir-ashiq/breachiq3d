@@ -1,0 +1,29 @@
+#!/bin/sh
+# Data-leak guard (GRID license): blocks any push containing licensed data
+# or derivatives. Installed by `make setup` (git config core.hooksPath .githooks).
+# CI runs the same audit server-side; this hook is the first line of defense.
+
+REMOTE="$1"
+PATTERN='\.\(zst\|jsonl\|parquet\|sqlite\|sqlite3\|db\)$\|^\(val\|lol\|val-ability-supplements\|data\)/'
+
+# Files about to be pushed (local ref vs remote), fall back to all tracked.
+if command -v git >/dev/null 2>&1; then
+    if git rev-parse --verify origin/main >/dev/null 2>&1; then
+        FILES=$(git diff --name-only origin/main HEAD 2>/dev/null; git ls-files)
+    else
+        FILES=$(git ls-files)
+    fi
+else
+    FILES=""
+fi
+
+BAD=$(echo "$FILES" | grep -E "$PATTERN" 2>/dev/null)
+
+if [ -n "$BAD" ]; then
+    echo "PUSH BLOCKED - licensed GRID data detected:" >&2
+    echo "$BAD" >&2
+    echo "The data license forbids committing data or derivatives (docs/COMPLIANCE.md)." >&2
+    exit 1
+fi
+
+exit 0

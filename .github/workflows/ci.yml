@@ -1,0 +1,22 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pinned dependencies
+        run: pip install -r requirements.txt
+      - name: Data-leak audit (GRID license guard)
+        run: python scripts/audit_repo.py
+      - name: Pipeline verification (benchmark, coverage, render smoke)
+        run: python scripts/verify_pipeline.py
+      - name: Test suite
+        run: python -m pytest
