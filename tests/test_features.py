@@ -91,3 +91,44 @@ class TestBriefExport:
                               {"rounds": 60, "patch": "11.08"})
         assert pdf[:4] == b"%PDF"
         assert len(pdf) > 1000
+
+
+class TestTrajectoryPoint:
+    """The per-cast record contract from docs/GUIDE.md section 3A. One
+    builder (features.trajectory_point) feeds both the synthetic API and
+    the real-corpus snapshot, so the modes cannot drift apart."""
+
+    def _point(self, **kw):
+        args = dict(u=0.444849999, v=0.0, u0=0.421049999, v0=0.125,
+                    azimuth=-10.04, pitch=18.5, ability="sage-wall",
+                    ability_class="stall", player="Alpha", round_no=4,
+                    quality="ok", confidence=1.0, patch="11.08")
+        args.update(kw)
+        return features.trajectory_point(**args)
+
+    def test_contract_fields_present(self):
+        p = self._point()
+        assert set(p) == {"u", "v", "u0", "v0", "azimuth", "pitch",
+                          "ability", "class", "player", "round",
+                          "quality", "confidence", "is_estimate", "patch"}
+
+    def test_rounding_and_angle_ranges(self):
+        p = self._point()
+        assert p["u"] == 0.4448 and p["u0"] == 0.421
+        assert p["azimuth"] == 350.0      # -10.04 deg normalized to [0, 360)
+        assert p["pitch"] == 18.5         # clamped to [-90, 90]
+        assert p["confidence"] == 1.0
+
+    def test_estimate_label_is_permanent(self):
+        # GRID records no landing coordinates: is_estimate can never be
+        # turned off, whatever the inputs claim.
+        assert self._point().get("is_estimate") is True
+
+    def test_missing_aim_becomes_explicit_nulls(self):
+        p = self._point(azimuth=None, pitch=None, confidence=None)
+        assert p["azimuth"] is None and p["pitch"] is None
+        assert p["confidence"] is None   # frontend skips the aim tick
+
+    def test_pitch_clamps(self):
+        assert self._point(pitch=123.4)["pitch"] == 90.0
+        assert self._point(pitch=-123.4)["pitch"] == -90.0

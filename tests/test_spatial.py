@@ -103,6 +103,44 @@ class TestLandingEstimate:
         assert bad.confidence < ok.confidence
 
 
+class TestProjectLanding:
+    """The shared landing core: synthetic API mode and the real-corpus
+    snapshot builder (scripts/build_findings.py) must project identically."""
+
+    def test_vertical_cast_lands_on_caster(self):
+        est = spatial.project_landing(
+            {"x": 0.0, "y": 0.0, "z": 100.0}, {"x": 0.0, "y": 0.0, "z": 1.0},
+            "smoke", spatial.BOUNDS["split"])
+        assert any("vertical" in n for n in est.notes)
+        assert 0.0 <= est.u <= 1.0 and 0.0 <= est.v <= 1.0
+
+    def test_quality_and_low_rate_stack(self):
+        ok = spatial.project_landing({"x": 0.0, "y": 0.0}, {"x": 1.0, "y": 0.0},
+                                     "recon", spatial.BOUNDS["split"])
+        degraded = spatial.project_landing({"x": 0.0, "y": 0.0},
+                                           {"x": 1.0, "y": 0.0},
+                                           "recon", spatial.BOUNDS["split"],
+                                           quality="missing_after",
+                                           low_rate=True)
+        assert degraded.confidence == pytest.approx(ok.confidence * 0.6 * 0.7)
+
+    def test_matches_estimate_landing_for_a_cast_event(self):
+        """One landing math, two entry points: the frame-based synthetic
+        path and the resolved-state path must agree exactly."""
+        ev = {"frame_before": _frame(-100, pos=(1000.0, 2000.0, 150.0),
+                                     view=(0.6, 0.8, 0.1)),
+              "frame_after": _frame(100, pos=(1100.0, 2100.0, 150.0),
+                                    view=(0.6, 0.8, 0.1))}
+        est = spatial.estimate_landing(ev, "recon", spatial.BOUNDS["split"])
+        state = spatial.cast_state(ev)
+        direct = spatial.project_landing(state["position"], state["view"],
+                                         "recon", spatial.BOUNDS["split"],
+                                         quality=state["quality"],
+                                         low_rate=state["low_rate"])
+        assert (direct.u, direct.v, direct.confidence) == \
+            (est.u, est.v, est.confidence)
+
+
 class TestLineupTrajectory:
     """The 3D viewer's arc: cast point -> parabola -> landing estimate."""
 
