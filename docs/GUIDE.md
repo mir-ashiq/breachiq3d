@@ -41,7 +41,7 @@ Rule 2: Branch naming convention:
 
 Rule 3: Co-authorship for 50/50 contribution graph:
 When working on shared contracts, add both authors in the commit trailer so GitHub registers contributions on both profiles:
-Co-authored-by: mir-ashiq <164319409+mir-ashiq@users.noreply.github.com>
+Co-authored-by: mir-ashiq <imsrenpsycho@gmail.com>
 Co-authored-by: steavengalang <steavengalang@gmail.com>
 
 Rule 4: Zero proprietary data in git:
