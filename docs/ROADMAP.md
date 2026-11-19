@@ -29,15 +29,17 @@ stay live through **Feb 3, 2027**; winners announced on or around **Feb 8**.
 - [ ] Landing-estimate validation vs damage events (method + confidence) —
       still open, moves with the week-3 canvas
 
-## Week 3 (Dec 1–7): tactical canvas
+## Week 3 (Dec 1–7): tactical canvas & filter rail expansion
 
-- [ ] Frontend consumes the OpenAPI contract (`/openapi.json`)
+- [x] Frontend consumes the OpenAPI contract (`/openapi.json`)
 - [x] Trajectory overlays, layer toggles, keyboard shortcut polish —
       **shipped early (Nov 19)**: orbitable 3D trajectory viewer (density
       terrain + lineup arcs → labeled landing estimates), layer toggles,
       keyboard shortcuts, hold-angle overlay, URL state, data table
-- [ ] Filter rail: team, player, agent, composition, patch, weapon (map +
-      side + ability already live and partition-tested)
+- [x] Phase 0 parity reset: WebStorm project configuration (.idea/) committed
+      and dual-track collaboration guide merged
+- [ ] Filter rail expansion: player roster isolation, agent classification,
+      and operator sniper hold bias toggle (Track B active: Sann)
 - [ ] Stretch (cost-boxed 2 days, only if above is green): small JetBrains
       integration — Junie run-book commands or a PyCharm/IDEA tool window
       that opens a series' evidence report (dossier gap: no rival ships a
