@@ -74,8 +74,8 @@ def test_outcomes_and_pacing_present():
 
 
 POINT_FIELDS = ("u", "v", "u0", "v0", "azimuth", "pitch", "ability",
-                "class", "player", "round", "quality", "confidence",
-                "is_estimate", "patch")
+                "class", "player", "agent", "round", "quality",
+                "confidence", "is_estimate", "patch")
 
 
 def test_snapshot_points_follow_contract_when_present():

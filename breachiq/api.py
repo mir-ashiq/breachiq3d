@@ -60,7 +60,8 @@ def _data() -> dict:
 
 
 def _atlas(data: dict, map_name: str, side: str = "all",
-           ability: str = "", patch: str = "") -> dict:
+           ability: str = "", patch: str = "",
+           player: str = "", agent: str = "") -> dict:
     atlas = features.UtilityAtlas()
     by_round: dict[int, list[dict]] = {}
     points: list[dict] = []
@@ -76,6 +77,10 @@ def _atlas(data: dict, map_name: str, side: str = "all",
         if side in ("attacker", "defender") and cast.get("side") != side:
             continue
         if ability and cast.get("ability") != ability:
+            continue
+        if player and cast.get("player_id") != player:
+            continue
+        if agent and AGENT_OF.get(cast.get("player_id"), "") != agent:
             continue
         state = spatial.cast_state(cast)
         if state is None:
@@ -100,7 +105,8 @@ def _atlas(data: dict, map_name: str, side: str = "all",
             player=cast.get("player_id", ""),
             round_no=cast.get("round"), quality=state["quality"],
             confidence=entry["confidence"],
-            patch=round_patch.get(cast["round"], "")))
+            patch=round_patch.get(cast["round"], ""),
+            agent=AGENT_OF.get(cast.get("player_id"), "")))
     for r in rounds_here:
         atlas.add_round(by_round.get(r["round"], []), patch=r.get("patch", ""))
     result = atlas.result(matches=len(rounds_here),
@@ -116,7 +122,8 @@ def _atlas(data: dict, map_name: str, side: str = "all",
 
 
 def _atlas_real(map_name: str, side: str = "all", ability: str = "",
-                patch: str = "") -> dict:
+                patch: str = "", player: str = "",
+                agent: str = "") -> dict:
     snap = _snapshot()
     entry = snap["atlas"].get(map_name)
     if entry is None:
@@ -135,16 +142,26 @@ def _atlas_real(map_name: str, side: str = "all", ability: str = "",
         out["points_note"] = ("this snapshot predates per-cast trajectory "
                               "points; regenerate with `make findings` "
                               "against the GRID corpus")
+    # patch/player/agent can only filter the per-cast points: abilities and
+    # density are committed aggregates without that attribution. Say so
+    # instead of pretending the whole view is filtered.
+    scope_note = ("points only - abilities/density stay map-level "
+                  "aggregates")
     if patch:
         pts = [p for p in pts if p.get("patch", "") == patch]
-        out["patch_scope"] = ("points only - abilities/density stay "
-                              "all-patch aggregates")
+        out["points_scope"] = scope_note
+    if player:
+        pts = [p for p in pts if p.get("player") == player]
+        out["points_scope"] = scope_note
+    if agent:
+        pts = [p for p in pts if p.get("agent", "") == agent]
+        out["points_scope"] = scope_note
     if ability:
         out = {**out, "abilities": [a for a in s["abilities"]
                                     if a["ability"] == ability]}
         pts = [p for p in pts if p.get("ability") == ability]
     out["points"] = pts
-    if patch or ability:
+    if patch or ability or player or agent:
         # the true cast count is only honest on an unfiltered view
         out.pop("points_total", None)
     return out
@@ -180,15 +197,22 @@ def atlas(map: str = Query(..., description="map name"),
           ability: str = Query("", description="exact ability id filter"),
           patch: str = Query("", description="patch filter, e.g. 11.08 "
                              "(filters rounds in synthetic mode; points "
-                             "only in real-aggregate mode)")) -> dict:
+                             "only in real-aggregate mode)"),
+          player: str = Query("", description="roster filter, e.g. Alpha "
+                              "(points-scope in real-aggregate mode)"),
+          agent: str = Query("", description="agent filter, e.g. cypher "
+                             "(points-scope in real-aggregate mode)")
+          ) -> dict:
     side = _SIDE_ALIASES.get(side, side)
     if side not in ("all", "attacker", "defender"):
         raise HTTPException(422, f"invalid side: {side}")
     if _real():
-        return _atlas_real(map, side=side, ability=ability, patch=patch)
+        return _atlas_real(map, side=side, ability=ability, patch=patch,
+                           player=player, agent=agent)
     if map not in spatial.BOUNDS:
         raise HTTPException(404, f"unknown map: {map}")
-    return _atlas(_data(), map, side=side, ability=ability, patch=patch)
+    return _atlas(_data(), map, side=side, ability=ability, patch=patch,
+                  player=player, agent=agent)
 
 
 @app.get("/api/operator")
@@ -204,15 +228,18 @@ def operator() -> dict:
 
 
 PLAYERS = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"]
+# synthetic roster: player -> agent (the roster filter rail and the hover
+# tooltip read this off every atlas point)
+AGENT_OF = dict(zip(PLAYERS,
+                    ["cypher", "sova", "killjoy", "brimstone", "chamber"]))
 
 
 def _operator_from_rounds(data: dict, fp: features.OperatorFingerprint) -> dict:
-    agent_of = dict(zip(PLAYERS, ["cypher", "sova", "killjoy", "brimstone", "chamber"]))
     for r in data["rounds"]:
         buyers = set(r.get("operator_buyers", []))
         holds = r.get("operator_holds", {})
         for p in PLAYERS:
-            fp.add_round(player=p, agent=agent_of[p],
+            fp.add_round(player=p, agent=AGENT_OF[p],
                          bought_operator=p in buyers,
                          hold_start_s=holds.get(p),
                          hold_map=r.get("map"))
