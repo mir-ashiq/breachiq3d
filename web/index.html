@@ -9,84 +9,214 @@
 <body>
 <div class="app">
   <header>
-    <h1>BreachIQ<span>3D</span></h1>
-    <span class="badge">Category 1 · VALORANT Tactical Scouting</span>
-    <span class="badge estimate">landing zones = estimates</span>
-    <div id="filters" aria-label="filter rail">
-      <label>map <select id="f-map"></select></label>
-      <label>side <select id="f-side"><option>all</option><option>attack</option><option>defense</option></select></label>
-      <label>patch <select id="f-patch"><option>all</option><option>11.08</option></select></label>
-      <label>ability <select id="f-ability"><option>all</option></select></label>
+    <div class="brand-group">
+      <div class="logo-mark">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="22" y1="12" x2="18" y2="12"></line>
+          <line x1="6" y1="12" x2="2" y2="12"></line>
+          <line x1="12" y1="6" x2="12" y2="2"></line>
+          <line x1="12" y1="22" x2="12" y2="18"></line>
+        </svg>
+      </div>
+      <h1>BreachIQ<span>3D</span></h1>
+      <span class="badge category">Cloud9 × JetBrains · Cat 1 VALORANT</span>
+      <span class="badge estimate" title="Raycast trajectory model calibrated against map bounds">3D Raycast Estimates</span>
     </div>
-    <span style="flex:1"></span>
-    <button class="ghost" id="btn-refresh">refresh (r)</button>
-    <button id="btn-brief">export brief (PDF)</button>
+
+    <div id="filters" aria-label="tactical filter rail">
+      <div class="filter-item">
+        <label for="f-map">MAP</label>
+        <select id="f-map"></select>
+      </div>
+      <div class="filter-item">
+        <label for="f-side">SIDE</label>
+        <select id="f-side">
+          <option value="all">ALL SIDES</option>
+          <option value="attack">ATTACK</option>
+          <option value="defense">DEFENSE</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label for="f-patch">PATCH</label>
+        <select id="f-patch">
+          <option value="all">ALL</option>
+          <option value="11.08" selected>11.08</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label for="f-ability">ABILITY</label>
+        <select id="f-ability">
+          <option value="all">ALL ABILITIES</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="live-pill" id="live-indicator">
+        <span class="live-dot"></span>
+        <span class="live-text">DEMO SNAPSHOT</span>
+      </div>
+      <button class="ghost" id="btn-refresh" title="Refresh data feed (R)">
+        <span class="btn-icon">↻</span> Refresh (r)
+      </button>
+      <button id="btn-brief" title="Export tactical brief PDF (B)">
+        <span class="btn-icon">↓</span> Export Brief (PDF)
+      </button>
+      <button class="icon-btn" id="btn-help" title="Tactical briefing & shortcuts (?)">?</button>
+    </div>
   </header>
 
   <div id="demo-banner" class="hidden">
-    <b>Static demo</b> · SYNTHETIC data (no GRID data is redistributed) ·
-    the full API + real-corpus pipeline run locally — see the
-    <a href="https://github.com/mir-ashiq/breachiq3d" target="_blank" rel="noopener">README</a>
-    · real-data findings: <a href="https://github.com/mir-ashiq/breachiq3d/blob/main/docs/FINDINGS.md" target="_blank" rel="noopener">docs/FINDINGS.md</a>
+    <div class="banner-inner">
+      <span class="pulse-tag">STATIC LAB DEMO</span>
+      <span>
+        SYNTHETIC data corpus (zero proprietary GRID data redistributed). Fully compliant with tournament terms.
+        Real pipeline findings: <a href="https://github.com/mir-ashiq/breachiq3d/blob/main/docs/FINDINGS.md" target="_blank" rel="noopener">docs/FINDINGS.md</a>
+      </span>
+      <a class="source-link" href="https://github.com/mir-ashiq/breachiq3d" target="_blank" rel="noopener">GitHub Repo ↗</a>
+    </div>
   </div>
 
   <main>
     <div class="card" id="map-card">
-      <h2>Utility atlas <span id="layer-toggles"></span></h2>
-      <canvas id="minimap" width="800" height="800"></canvas>
+      <div class="card-header">
+        <div class="title-with-desc">
+          <h2>Utility Trajectory &amp; Atlas Minimap</h2>
+          <span class="subtitle" id="map-note">Loading tactical spatial grid…</span>
+        </div>
+        <div class="view-toggles">
+          <label class="switch-label">
+            <input type="checkbox" id="toggle-trajectories" checked>
+            <span>3D Trajectories</span>
+          </label>
+          <label class="switch-label">
+            <input type="checkbox" id="toggle-zones" checked>
+            <span>Zones Heat</span>
+          </label>
+          <div id="layer-toggles" class="layer-pill-group"></div>
+        </div>
+      </div>
+
+      <div class="canvas-container">
+        <canvas id="minimap" width="800" height="800"></canvas>
+        <div id="canvas-tooltip" class="canvas-tooltip hidden"></div>
+      </div>
+
       <div class="legend">
-        <span><i class="chip" style="background:var(--heat-1)"></i>low</span>
-        <span><i class="chip" style="background:var(--heat-2)"></i>mid</span>
-        <span><i class="chip" style="background:var(--heat-3)"></i>high</span>
-        <span><i class="chip" style="background:var(--heat-4)"></i>extreme</span>
-        <span>· dots = cast points · ★ = repeated lineup</span>
-        <span id="map-note"></span>
+        <div class="legend-heat">
+          <span class="legend-label">HEAT:</span>
+          <span><i class="chip" style="background:var(--heat-1)"></i>LOW</span>
+          <span><i class="chip" style="background:var(--heat-2)"></i>MID</span>
+          <span><i class="chip" style="background:var(--heat-3)"></i>HIGH</span>
+          <span><i class="chip" style="background:var(--heat-4)"></i>EXTREME</span>
+        </div>
+        <div class="legend-items">
+          <span><i class="dot-sample dot-cast"></i> Caster Position</span>
+          <span><i class="dot-sample dot-arc"></i> Trajectory Arc</span>
+          <span><i class="dot-sample dot-land"></i> Impact Estimate</span>
+          <span><span class="star-sample">★</span> Repeated Lineup (3+ rds)</span>
+        </div>
       </div>
     </div>
 
-    <div id="evidence" class="card" aria-live="polite"></div>
+    <div id="evidence" class="card evidence-bar" aria-live="polite">
+      <div class="state">Awaiting telemetry telemetry payload…</div>
+    </div>
 
     <div id="side-card">
-      <div class="card">
-        <h2>Operator / Odin fingerprint</h2>
+      <div class="card" id="operator-card">
+        <div class="card-header">
+          <h2>Operator / Odin Fingerprint</h2>
+          <span class="badge-mini">Weapon Bias</span>
+        </div>
         <div id="operator" class="rows"><div class="state">loading…</div></div>
       </div>
-      <div class="card">
-        <h2>Counter-brief (anti-strat)</h2>
+
+      <div class="card" id="counter-card">
+        <div class="card-header">
+          <h2>Prescriptive Counter-Brief</h2>
+          <span class="badge-mini highlight">AI Anti-Strat</span>
+        </div>
         <div id="cues"><div class="state">loading…</div></div>
       </div>
     </div>
 
     <div class="card" id="lineup-card">
-      <h2>Repeated lineups <span class="badge estimate">same spot, same aim, 3+ rounds</span></h2>
+      <div class="card-header">
+        <h2>Repeated Lineups <span class="badge estimate">Same Spot · Same Aim (3+ Rounds)</span></h2>
+        <span class="badge-mini">Exploitable Patterns</span>
+      </div>
       <div id="lineups" class="rows"><div class="state">loading…</div></div>
     </div>
 
     <div class="card" id="pacing-card">
-      <h2>Site-execute pacing &amp; economy collapse</h2>
+      <div class="card-header">
+        <h2>Site-Execute Pacing &amp; Economy Vulnerabilities</h2>
+        <span class="badge-mini">Timing Windows</span>
+      </div>
       <div id="pacing" class="rows"><div class="state">loading…</div></div>
     </div>
   </main>
 
   <footer>
-    BreachIQ 3D · Cloud9 × JetBrains Sky's The Limit 2026 · demo runs on
-    SYNTHETIC data (no GRID data is redistributed) · every landing zone is a
-    labeled raycast estimate
+    <div class="footer-left">
+      <strong>BreachIQ 3D</strong> · Cloud9 × JetBrains Sky's The Limit 2026 Hackathon (Category 1 VALORANT Tactical Scouting).
+    </div>
+    <div class="footer-right">
+      <span>Zero Raw GRID Telemetry Stored</span> · <span>Calibrated Raycast Math Engine</span>
+    </div>
   </footer>
 </div>
 
-<div id="onboarding" class="hidden" role="dialog" aria-label="onboarding">
-  <div class="card">
-    <h2>60-second cold start</h2>
-    <ol>
-      <li>Pick a <b>map</b> in the header — the atlas shows where utility lands, by frequency tier.</li>
-      <li>Check the <b>evidence bar</b> under the map: every number carries its sample size.</li>
-      <li>Hover the <b>repeated lineups</b>: set plays you can pre-aim, with repeat counts.</li>
-      <li>Read the <b>counter-brief</b> (right): prescriptive cues, not stats.</li>
-      <li>Export a one-page <b>PDF brief</b> for between scrims.</li>
-    </ol>
-    <p>Keyboard shortcut map: <kbd>1</kbd> atlas · <kbd>2</kbd> operator · <kbd>3</kbd> pacing · <kbd>b</kbd> brief · <kbd>r</kbd> refresh · <kbd>?</kbd> this tour</p>
-    <p><button id="btn-start">I'm ready</button></p>
+<div id="onboarding" class="hidden" role="dialog" aria-label="Tactical Onboarding Tour">
+  <div class="modal-backdrop"></div>
+  <div class="card onboarding-modal">
+    <div class="modal-header">
+      <h2>Tactical Scouting Console — Rapid Onboarding</h2>
+      <button class="modal-close" id="btn-close-onboarding">✕</button>
+    </div>
+    <div class="modal-content">
+      <div class="onboard-step">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>Interactive Spatial Minimap:</strong>
+          <span>Toggle 3D Trajectory Arcs to visualize the exact vector from caster coordinates to estimated projectile impacts.</span>
+        </div>
+      </div>
+      <div class="onboard-step">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>Evidence Bar Verification:</strong>
+          <span>Every frequency number links to hard round counts, sample quality mix, and patch freshness so coaches avoid small-sample traps.</span>
+        </div>
+      </div>
+      <div class="onboard-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>Repeated Lineup Exploits:</strong>
+          <span>Identifies deterministic enemy setups (<span style="color:var(--accent-2)">★</span>) repeated over 3+ distinct rounds for instant pre-aim anti-strats.</span>
+        </div>
+      </div>
+      <div class="onboard-step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <strong>Tactical Counter-Brief:</strong>
+          <span>Instant actionable coaching instructions generated for between-match tactical timeouts.</span>
+        </div>
+      </div>
+      <div class="shortcut-strip">
+        <kbd>1</kbd> Atlas
+        <kbd>2</kbd> Operator
+        <kbd>3</kbd> Pacing
+        <kbd>B</kbd> Brief PDF
+        <kbd>R</kbd> Refresh
+        <kbd>?</kbd> Tour
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="btn-start" class="btn-primary">Acknowledge &amp; Enter Console</button>
+    </div>
   </div>
 </div>
 

@@ -31,13 +31,20 @@ def main() -> None:
             state = spatial.cast_state(cast)
             if state is None:
                 continue
-            u, v = spatial.normalize_position(state["position"], spatial.BOUNDS[m])
+            u0, v0 = spatial.normalize_position(state["position"], spatial.BOUNDS[m])
             landing = spatial.estimate_landing(
                 cast, features.ABILITY_CLASS.get(cast["ability"], "recon"),
                 spatial.BOUNDS[m])
-            entry = {"u": landing.u if landing else u,
-                     "v": landing.v if landing else v,
+            azimuth = spatial.azimuth_deg(state["view"]) if state.get("view") else None
+            pitch = spatial.pitch_deg(state["view"]) if state.get("view") else None
+            entry = {"u": landing.u if landing else u0,
+                     "v": landing.v if landing else v0,
+                     "u0": round(u0, 4), "v0": round(v0, 4),
+                     "azimuth": round(azimuth, 1) if azimuth is not None else None,
+                     "pitch": round(pitch, 1) if pitch is not None else None,
                      "ability": cast["ability"], "quality": state["quality"],
+                     "player": cast.get("player_id"),
+                     "round": cast.get("round"),
                      "confidence": landing.confidence if landing else None,
                      "is_estimate": True}
             by_round.setdefault(cast["round"], []).append(entry)

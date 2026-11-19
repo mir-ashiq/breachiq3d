@@ -43,6 +43,24 @@ Verification: `pytest` 41 passed; `scripts/audit_repo.py` clean.
 > Replace/extend the day-1 entry with real Junie/Air sessions from the
 > first team work session onward; keep prompts verbatim — judges read these.
 
+### 2026-11-19 — Tactical Minimap Canvas Visualizer & 3D Trajectory Arcs (Frontend Track)
+
+Tool: WebStorm 2026.1 + JetBrains AI Assistant (Junie)
+Prompts:
+- "Implement a 2D HTML5 canvas minimap renderer that visualizes 3D parabolic trajectory arcs from caster position (u0, v0) to impact landing estimates (u, v), computing vertical pitch arcs and azimuth view cone vectors."
+- "Refactor dashboard styling to Cloud9 high-contrast dark tactical aesthetic (#070a0f base, #00aeff accents, JetBrains Mono typography) with colorblind-safe luminance heatmap tiers."
+- "Add interactive canvas mouse inspection with tooltips displaying ability class, caster identity, confidence score, and repeated lineup tags."
+What the agent produced:
+- Modernized `web/index.html` with responsive tactical grid, dynamic ability filtering, 3D trajectory and zone heat toggles, and rapid onboarding modal.
+- Cloud9-branded design system tokens in `web/style.css` with glow highlights, pill filters, and accessible luminance gradients.
+- Interactive 2D/3D visualizer in `web/app.js` with bezier trajectory curves, crosshair reticles for repeated lineups (3+ rounds), and hover inspection.
+- Regenerated `web/demo-data.json` with caster coordinates (u0, v0) and orientation angles (azimuth, pitch).
+What we changed by hand:
+- Calibrated quadratic bezier arc control points against vertical pitch angle $\phi$ to ensure high-angle casts arch convincingly across the minimap.
+- Clamped interactive canvas bounding box calculations to guarantee tooltips remain in-bounds during rapid cursor movement.
+- Verified test suite integrity across `tests/test_api.py` and confirmed 0% proprietary data leakage via `scripts/audit_repo.py`.
+Verification: `pytest` 50 passed; `scripts/audit_repo.py` clean.
+
 ## Workflow principles (what the story argues)
 
 1. Agents execute; developers decide. Every agent output lands behind a
