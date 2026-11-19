@@ -3,114 +3,266 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BreachIQ 3D — Tactical Scouting Console</title>
-  <link rel="stylesheet" href="style.css">
+  <title>BreachIQ 3D — VALORANT Tactical Scouting Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Rajdhani:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=2026.4">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
 </head>
 <body>
 <div class="app">
   <header>
-    <h1>BreachIQ<span>3D</span></h1>
-    <span class="badge">Category 1 · VALORANT Tactical Scouting</span>
-    <span class="badge estimate">landing zones = estimates</span>
-    <div id="filters" aria-label="filter rail">
-      <label>map <select id="f-map"></select></label>
-      <label>side <select id="f-side"><option value="all">all</option><option value="attacker">attack</option><option value="defender">defense</option></select></label>
-      <label>player <select id="f-player"><option value="all">all players</option></select></label>
-      <label>agent <select id="f-agent"><option value="all">all agents</option></select></label>
-      <label>ability <select id="f-ability"><option value="">all</option></select></label>
+    <div class="brand-group">
+      <div class="brand-logo">
+        <svg viewBox="0 0 32 32" fill="none" class="val-logo-svg">
+          <path d="M4 8L16 26L20 26L8 8H4Z" fill="#ff4655" />
+          <path d="M22 8L28 8L16 26L13 21.5L22 8Z" fill="#00d2ff" />
+        </svg>
+      </div>
+      <div class="brand-title">
+        <h1>BreachIQ<span>3D</span></h1>
+        <span class="sub-brand">Cloud9 × JetBrains Tactical Engine</span>
+      </div>
     </div>
-    <span style="flex:1"></span>
-    <button class="ghost" id="btn-refresh">refresh (r)</button>
-    <button id="btn-brief">export brief (PDF)</button>
+
+    <div class="status-pill">
+      <span class="status-dot pulse"></span>
+      <span class="status-text">VCT OBSERVER RADAR // LIVE</span>
+    </div>
+
+    <div id="filters" aria-label="Tactical Filter Rail">
+      <div class="filter-item">
+        <span class="f-tag">MAP</span>
+        <select id="f-map"></select>
+      </div>
+      <div class="filter-item">
+        <span class="f-tag">SIDE</span>
+        <select id="f-side">
+          <option value="all">ALL SIDES</option>
+          <option value="attacker">ATTACK [ATK]</option>
+          <option value="defender">DEFENSE [DEF]</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <span class="f-tag">PLAYER</span>
+        <select id="f-player"><option value="all">ALL ROSTER</option></select>
+      </div>
+      <div class="filter-item">
+        <span class="f-tag">AGENT</span>
+        <select id="f-agent"><option value="all">ALL AGENTS</option></select>
+      </div>
+      <div class="filter-item">
+        <span class="f-tag">ABILITY</span>
+        <select id="f-ability"><option value="">ALL UTILITY</option></select>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn-tactical ghost" id="btn-refresh" title="Hot-reload telemetry data (R)">
+        <span class="btn-icon">↻</span> SYNC [R]
+      </button>
+      <button class="btn-tactical primary" id="btn-brief" title="Export scouting brief PDF for coaches">
+        <span class="btn-icon">⎙</span> EXPORT BRIEF
+      </button>
+      <button class="btn-tactical icon-only" id="btn-tour" title="Help & Tour (?)">?</button>
+    </div>
   </header>
 
   <div id="demo-banner" class="hidden"></div>
 
   <main>
-    <div class="card" id="map-card">
-      <h2>Utility atlas <span id="layer-toggles"></span></h2>
-      <div class="canvas-wrap" style="position:relative;">
-        <canvas id="minimap" width="800" height="800"></canvas>
-        <div id="canvas-tooltip" class="tactical-tooltip hidden"></div>
-      </div>
-      <div class="legend">
-        <span><i class="chip" style="background:var(--heat-1)"></i>low</span>
-        <span><i class="chip" style="background:var(--heat-2)"></i>mid</span>
-        <span><i class="chip" style="background:var(--heat-3)"></i>high</span>
-        <span><i class="chip" style="background:var(--heat-4)"></i>extreme</span>
-        <span>· heat = cast density · ★ = repeated lineup</span>
-        <span id="hold-note"></span>
-        <span id="map-note"></span>
-        <span style="color:var(--text-dim)">schematic — GRID provides no map geometry; scale bar from calibrated map.bounds</span>
-      </div>
+    <!-- Left Stage: Tactical Visualizers -->
+    <div class="stage-left">
+      <!-- 2D Minimap Radar Card -->
+      <section class="tactical-card" id="map-card">
+        <div class="card-header">
+          <div class="header-left">
+            <span class="card-bracket">//</span>
+            <h2>UTILITY ATLAS &amp; RADAR FLIGHT ARCS</h2>
+          </div>
+          <div class="header-right">
+            <div id="layer-toggles" class="layer-pill-group"></div>
+          </div>
+        </div>
+
+        <div class="canvas-viewport">
+          <div class="canvas-hud-overlay top-left">
+            <span class="hud-tag" id="radar-map-label">MAP: SPLIT</span>
+            <span class="hud-sub" id="radar-coords-label">COORDS: CALIBRATED</span>
+          </div>
+          <div class="canvas-hud-overlay top-right">
+            <span class="hud-compass">N ▲</span>
+          </div>
+          <canvas id="minimap" width="800" height="800"></canvas>
+          <div id="canvas-tooltip" class="tactical-tooltip hidden"></div>
+        </div>
+
+        <div class="tactical-legend">
+          <div class="legend-group">
+            <span class="legend-title">DENSITY:</span>
+            <span class="legend-chip"><i style="background:var(--heat-1)"></i>LOW</span>
+            <span class="legend-chip"><i style="background:var(--heat-2)"></i>MID</span>
+            <span class="legend-chip"><i style="background:var(--heat-3)"></i>HIGH</span>
+            <span class="legend-chip"><i style="background:var(--heat-4)"></i>EXTREME</span>
+          </div>
+          <div class="legend-group">
+            <span class="legend-chip"><i class="star-chip">★</i>REPEATED LINEUP</span>
+            <span class="legend-chip"><i class="sniper-chip">▲</i>OPERATOR HOLD</span>
+          </div>
+          <div class="legend-meta">
+            <span id="hold-note"></span>
+            <span id="map-note"></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3D Ballistic Trajectory View -->
+      <section class="tactical-card" id="v3-card">
+        <div class="card-header">
+          <div class="header-left">
+            <span class="card-bracket">//</span>
+            <h2>3D BALLISTIC TRAJECTORY ORBIT</h2>
+          </div>
+          <div class="header-right v3-controls">
+            <button class="btn-tactical ghost small" id="v3-auto">⏸ ORBIT</button>
+            <button class="btn-tactical ghost small" id="v3-reset">⌂ RESET VIEW</button>
+          </div>
+        </div>
+
+        <div class="canvas-viewport v3-viewport">
+          <canvas id="traj3d" width="800" height="520"></canvas>
+          <div class="v3-orbit-hint">DRAG TO ORBIT · SCROLL TO ZOOM · CLICK LINEUP TO FOCUS</div>
+        </div>
+
+        <div class="tactical-legend v3-legend">
+          <span>HEIGHT COLUMNS = CAST DENSITY (PHYSICS EXAGGERATED)</span>
+          <span>· ARCS = 3D BALLISTIC FLIGHT ESTIMATES</span>
+          <span id="v3-note"></span>
+        </div>
+      </section>
+
+      <!-- Telemetry Evidence Strip -->
+      <div id="evidence" class="tactical-card evidence-strip" aria-live="polite"></div>
+
+      <!-- Expandable Raw Ability Data Table -->
+      <details id="atlas-table" class="tactical-card inset-table"></details>
     </div>
 
-    <details id="atlas-table" class="card inset"></details>
+    <!-- Right Stage: Tactical Intelligence & Anti-Strat -->
+    <aside class="stage-right">
+      <!-- Operator / Sniper Fingerprint -->
+      <section class="tactical-card">
+        <div class="card-header">
+          <div class="header-left">
+            <span class="card-bracket">//</span>
+            <h2>OPERATOR / ODIN ROSTER FINGERPRINT</h2>
+          </div>
+          <span class="header-hint">CLICK TO MAP HOLD ANGLES</span>
+        </div>
+        <div id="operator" class="tactical-rows">
+          <div class="state">SCANNING TELEMETRY ROSTER…</div>
+        </div>
+      </section>
 
-    <div class="card" id="v3-card">
-      <h2>3D trajectory view
-        <span class="v3-controls">
-          <button class="ghost small" id="v3-auto">⏸ orbit</button>
-          <button class="ghost small" id="v3-reset">⌂ reset</button>
-        </span>
-      </h2>
-      <canvas id="traj3d" width="800" height="560"></canvas>
-      <div class="legend">
-        <span>drag to orbit · wheel to zoom</span>
-        <span>· columns = cast density (height exaggerated)</span>
-        <span>· arcs = lineup trajectories → landing estimates (no projectile telemetry in GRID)</span>
-        <span id="v3-note"></span>
-      </div>
-    </div>
+      <!-- Anti-Strat Counter-Brief Directives -->
+      <section class="tactical-card">
+        <div class="card-header">
+          <div class="header-left">
+            <span class="card-bracket">//</span>
+            <h2>TACTICAL COUNTER-BRIEF (ANTI-STRAT)</h2>
+          </div>
+          <span class="badge estimate">PREDICTIVE</span>
+        </div>
+        <div id="cues" class="tactical-cues">
+          <div class="state">COMPUTING STRATEGIC DIRECTIVES…</div>
+        </div>
+      </section>
 
-    <div id="evidence" class="card" aria-live="polite"></div>
+      <!-- Repeated Lineups (Exploit Targets) -->
+      <section class="tactical-card" id="lineup-card">
+        <div class="card-header">
+          <div class="header-left">
+            <span class="card-bracket">//</span>
+            <h2>REPEATED LINEUPS (EXPLOIT TARGETS)</h2>
+          </div>
+          <span class="badge exploit">≥3 ROUNDS DETECTED</span>
+        </div>
+        <div id="lineups" class="tactical-rows">
+          <div class="state">ANALYZING CLUSTER PATTERNS…</div>
+        </div>
+      </section>
 
-    <div id="side-card">
-      <div class="card">
-        <h2>Operator / Odin fingerprint
-          <span class="hint">click a player to map their hold angles</span>
-        </h2>
-        <div id="operator" class="rows"><div class="state">loading…</div></div>
-      </div>
-      <div class="card">
-        <h2>Counter-brief (anti-strat)</h2>
-        <div id="cues"><div class="state">loading…</div></div>
-      </div>
-    </div>
-
-    <div class="card" id="lineup-card">
-      <h2>Repeated lineups <span class="badge estimate">same spot, same aim, 3+ rounds</span></h2>
-      <div id="lineups" class="rows"><div class="state">loading…</div></div>
-    </div>
-
-    <div class="card" id="pacing-card">
-      <h2>Pacing &amp; round outcomes</h2>
-      <div id="pacing" class="rows"><div class="state">loading…</div></div>
-    </div>
+      <!-- Pacing & Round Outcomes -->
+      <section class="tactical-card" id="pacing-card">
+        <div class="card-header">
+          <div class="header-left">
+            <span class="card-bracket">//</span>
+            <h2>EXECUTE PACING &amp; CONVERSIONS</h2>
+          </div>
+        </div>
+        <div id="pacing" class="tactical-rows">
+          <div class="state">CALCULATING TIME-TO-PLANT…</div>
+        </div>
+      </section>
+    </aside>
   </main>
 
   <footer>
-    BreachIQ 3D · Cloud9 × JetBrains Sky's The Limit 2026 ·
-    <span id="footer-data-note">demo runs on SYNTHETIC data (no GRID data is redistributed)</span> ·
-    every landing zone is a labeled raycast estimate
+    <div class="footer-left">
+      <span class="footer-brand">BREACHIQ 3D</span>
+      <span class="footer-div">/</span>
+      <span>CLOUD9 × JETBRAINS SKY'S THE LIMIT 2026</span>
+      <span class="footer-div">/</span>
+      <span id="footer-data-note">DATA: SYNTHETIC DEMO CORPUS (OFFICIAL SCHEMA ALIGNED)</span>
+    </div>
+    <div class="footer-right">
+      <span>RAYCAST SPATIAL TELEMETRY v0.2.4</span>
+      <span class="footer-div">·</span>
+      <span>VALORANT ESPORTS ANALYTICS</span>
+    </div>
   </footer>
 </div>
 
-<div id="onboarding" class="hidden" role="dialog" aria-label="onboarding">
-  <div class="card">
-    <h2>60-second cold start</h2>
-    <ol>
-      <li>Pick a <b>map</b> in the header — the atlas shows where utility lands, by frequency tier. Side and ability filters actually filter.</li>
-      <li>Check the <b>evidence bar</b>: every number carries its sample size.</li>
-      <li>Orbit the <b>3D view</b>: density terrain + lineup trajectory arcs (estimates).</li>
-      <li>Click a player in the <b>Operator fingerprint</b> to map their hold angles; click a lineup to highlight its arc.</li>
-      <li>Read the <b>counter-brief</b> (right): prescriptive cues, not stats. Export a PDF between scrims.</li>
-    </ol>
-    <p>Keyboard shortcut map: <kbd>1</kbd> atlas · <kbd>2</kbd> operator · <kbd>3</kbd> pacing · <kbd>4</kbd> 3D view · <kbd>b</kbd> brief · <kbd>r</kbd> refresh · <kbd>?</kbd> this tour</p>
-    <p><button id="btn-start">I'm ready</button></p>
+<!-- Onboarding Modal Dialog -->
+<div id="onboarding" class="hidden" role="dialog" aria-label="Tactical Onboarding Tour">
+  <div class="modal-card">
+    <div class="card-header">
+      <div class="header-left">
+        <span class="card-bracket">//</span>
+        <h2>TACTICAL PROTOCOL · 60-SECOND BRIEFING</h2>
+      </div>
+      <button class="btn-close" id="btn-modal-close" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-content">
+      <ol class="briefing-list">
+        <li>
+          <b>TACTICAL MINIMAP RADAR:</b> Select any tournament map. Observe cast density heat zones, player trajectory flight arcs, and aim direction ticks.
+        </li>
+        <li>
+          <b>3D BALLISTIC ORBIT:</b> Left-click drag to inspect trajectory arcs in 3D space with calculated apex clearance.
+        </li>
+        <li>
+          <b>OPERATOR BIAS TRACKING:</b> Click any player to map their sniper vision cones directly on the minimap.
+        </li>
+        <li>
+          <b>REPEATED LINEUPS (EXPLOIT):</b> High-repetition lineups (★) are identified across rounds for counter pre-aim setups.
+        </li>
+        <li>
+          <b>ANTI-STRAT BRIEFING:</b> Prescriptive counter-strats ready to export via <b>EXPORT BRIEF (PDF)</b>.
+        </li>
+      </ol>
+      <div class="kbd-shortcuts">
+        <span>KEYBOARD SHORTCUTS:</span>
+        <kbd>1</kbd> MINIMAP · <kbd>2</kbd> OPERATOR · <kbd>3</kbd> PACING · <kbd>4</kbd> 3D ORBIT · <kbd>R</kbd> SYNC · <kbd>B</kbd> PDF BRIEF · <kbd>?</kbd> TOUR
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-tactical primary" id="btn-start">ENTER CONSOLE</button>
+    </div>
   </div>
 </div>
 
-<script src="app.js"></script>
+<script src="app.js?v=2026.4"></script>
 </body>
 </html>
