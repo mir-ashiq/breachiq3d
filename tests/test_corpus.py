@@ -75,6 +75,38 @@ def test_lineup_detector_requires_distinct_rounds():
     assert det.result() == []
 
 
+def test_lineup_detector_tracks_altitude_and_pitch():
+    """The 3D trajectory view needs the cluster's average cast altitude
+    and aim pitch, not just the planar position + azimuth."""
+    det = features.LineupDetector(min_repeats=3)
+    pos = {"x": 100.0, "y": 200.0, "z": 300.0}
+    az, pit = 80.0, 20.0
+    view = {"x": math.cos(math.radians(pit)) * math.cos(math.radians(az)),
+            "y": math.cos(math.radians(pit)) * math.sin(math.radians(az)),
+            "z": math.sin(math.radians(pit))}
+    for r in range(4):
+        det.add(ability="toxic-screen", map="lotus", position=pos,
+                view=view, round_key=f"s:{r}")
+    res = det.result()[0]
+    assert res["position_z"] == 300.0
+    assert abs(res["aim_pitch_deg"] - pit) < 0.5
+    assert res["aim_azimuth_deg"] == 80.0
+
+
+def test_operator_hold_positions_carry_map():
+    """Hold angles are map-tagged so the dashboard can overlay them on the
+    selected map's minimap."""
+    fp = features.OperatorFingerprint()
+    fp.add_round(player="OXY", agent="raze", bought_operator=True,
+                 hold_position=(0.5, 0.6), hold_map="lotus")
+    fp.add_round(player="OXY", agent="raze", bought_operator=True,
+                 hold_position=(0.7, 0.2), hold_map="abyss")
+    p = fp.result()["players"][0]
+    assert p["hold_positions"] == [
+        {"u": 0.5, "v": 0.6, "map": "lotus"},
+        {"u": 0.7, "v": 0.2, "map": "abyss"}]
+
+
 # ---------------------------------------------------------------- outcomes
 def test_round_outcomes_win_rates_and_pistols():
     ro = features.RoundOutcomes()

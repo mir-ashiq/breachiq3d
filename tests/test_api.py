@@ -17,6 +17,48 @@ def test_meta_is_synthetic():
     r = client.get("/api/meta")
     assert r.status_code == 200
     assert r.json()["SYNTHETIC"] is True  # never ship real GRID data here
+    assert r.json()["source"] == "synthetic"
+
+
+def test_atlas_carries_calibrated_bounds_m():
+    r = client.get("/api/atlas", params={"map": "split"})
+    b = r.json()["bounds_m"]
+    assert 50.0 < b["w"] < 200.0 and 50.0 < b["h"] < 200.0
+
+
+def test_lineups_carry_3d_trajectories():
+    r = client.get("/api/lineups")
+    assert r.status_code == 200
+    rows = r.json()["lineups"]
+    assert rows, "synthetic corpus has a deliberate set play"
+    for l in rows:
+        t = l["trajectory"]
+        assert len(t["points"]) == 13
+        assert t["is_estimate"] is True
+        assert 0.0 <= t["landing"][0] <= 1.0
+
+
+def test_real_aggregate_mode(monkeypatch):
+    """BREACHIQ_DATA=real serves the committed GRID corpus aggregates:
+    real numbers locally with zero clone, honestly labeled."""
+    monkeypatch.setenv("BREACHIQ_DATA", "real")
+    assert client.get("/health").json()["data"] == "real GRID corpus aggregates"
+    meta = client.get("/api/meta").json()
+    assert meta["source"] == "real-aggregates"
+    assert len(meta["maps"]) == 12
+    atk = client.get("/api/atlas", params={"map": "lotus",
+                                           "side": "attacker"}).json()
+    dfn = client.get("/api/atlas", params={"map": "lotus",
+                                           "side": "defender"}).json()
+    assert atk["rounds"] + dfn["rounds"] <= client.get(
+        "/api/atlas", params={"map": "lotus"}).json()["rounds"] + 1
+    assert atk["density"], "real mode serves the cast-density histogram"
+    assert atk["bounds_m"]["w"] > 50.0
+    op = client.get("/api/operator").json()
+    assert any(p["hold_positions"] for p in op["players"])
+    lu = client.get("/api/lineups").json()["lineups"]
+    assert lu[0]["trajectory"]["points"][0]  # 3D arcs available
+    monkeypatch.delenv("BREACHIQ_DATA")
 
 
 def test_atlas_taxonomy_order():

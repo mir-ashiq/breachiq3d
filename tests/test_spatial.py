@@ -101,3 +101,58 @@ class TestLandingEstimate:
             {"frame_before": _frame(-1600), "frame_after": _frame(100)},
             "recon", spatial.BOUNDS["split"])
         assert bad.confidence < ok.confidence
+
+
+class TestLineupTrajectory:
+    """The 3D viewer's arc: cast point -> parabola -> landing estimate."""
+
+    def _traj(self, az=80.0, pit=20.0, z=300.0):
+        pos = {"x": 5000.0, "y": 3000.0, "z": z}
+        return spatial.lineup_trajectory(
+            position=pos, aim_azimuth_deg=az, aim_pitch_deg=pit,
+            ability_class="smoke", bounds=spatial.BOUNDS["lotus"],
+            confidence=0.9)
+
+    def test_polyline_shape_and_estimate_label(self):
+        t = self._traj()
+        assert len(t["points"]) == 13
+        assert t["is_estimate"] is True
+        assert t["confidence"] == 0.9
+        assert t["landing"] == t["points"][-1][:2] + [0.0]
+        # every point inside normalized bounds
+        for u, v, h in t["points"]:
+            assert 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0
+            assert h >= 0.0
+
+    def test_arc_rises_above_the_cast_height(self):
+        t = self._traj()
+        z0 = t["points"][0][2]           # ~3 m (300 cm)
+        apex = max(p[2] for p in t["points"])
+        assert apex >= z0 + 0.8
+
+    def test_honesty_note_about_missing_telemetry(self):
+        t = self._traj()
+        assert any("no projectile telemetry" in n for n in t["notes"])
+
+    def test_landing_clamped_to_playable_bounds(self):
+        # aim far off the map from near the edge: ray must clamp, never
+        # render outside
+        t = spatial.lineup_trajectory(
+            position={"x": 10200.0, "y": 3000.0, "z": 0.0},
+            aim_azimuth_deg=0.0, aim_pitch_deg=0.0,
+            ability_class="smoke", bounds=spatial.BOUNDS["lotus"],
+            confidence=1.0)
+        assert 0.0 <= t["landing"][0] <= 1.0 and 0.0 <= t["landing"][1] <= 1.0
+        assert any("clamped" in n for n in t["notes"])
+
+    def test_offbounds_cast_start_is_clamped_and_labeled(self):
+        # a few real casts sit outside recorded playable bounds: the start
+        # is clamped for display and the note says so
+        t = spatial.lineup_trajectory(
+            position={"x": 5000.0, "y": 20000.0, "z": 0.0},   # far outside
+            aim_azimuth_deg=90.0, aim_pitch_deg=10.0,
+            ability_class="smoke", bounds=spatial.BOUNDS["lotus"],
+            confidence=1.0)
+        assert 0.0 <= t["points"][0][0] <= 1.0
+        assert 0.0 <= t["points"][0][1] <= 1.0
+        assert any("cast position clamped" in n for n in t["notes"])

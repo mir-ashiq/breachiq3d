@@ -130,7 +130,8 @@ class OperatorFingerprint:
 
     def add_round(self, *, player: str, agent: str, bought_operator: bool,
                   hold_start_s: float | None = None,
-                  hold_position: tuple[float, float] | None = None) -> None:
+                  hold_position: tuple[float, float] | None = None,
+                  hold_map: str | None = None) -> None:
         self.rounds_by_player[player] = self.rounds_by_player.get(player, 0) + 1
         if bought_operator:
             self.purchases[(player, agent)] = self.purchases.get((player, agent), 0) + 1
@@ -138,7 +139,8 @@ class OperatorFingerprint:
         if hold_start_s is not None:
             self.holds.setdefault(player, []).append(hold_start_s)
         if hold_position is not None:
-            self.hold_positions.setdefault(player, []).append(hold_position)
+            self.hold_positions.setdefault(player, []).append(
+                (hold_position[0], hold_position[1], hold_map))
 
     @staticmethod
     def _timing_bucket(t: float) -> str:
@@ -162,8 +164,8 @@ class OperatorFingerprint:
                 "buy_rate": f"{count}/{rounds} rounds",
                 "hold_timing": histogram,
                 "hold_positions": [
-                    {"u": round(u, 3), "v": round(v, 3)}
-                    for u, v in self.hold_positions.get(player, [])],
+                    {"u": round(u, 3), "v": round(v, 3), "map": m}
+                    for u, v, m in self.hold_positions.get(player, [])],
             })
         players.sort(key=lambda p: -p["operator_buys"])
         return {"players": players,
@@ -246,25 +248,40 @@ class LineupDetector:
                 cl["rounds"].add(round_key)
                 cl["n"] += 1
                 cl["conf_sum"] += confidence
+                cl["z_sum"] += float(position.get("z", 0.0))
+                cl["vx_sum"] += view["x"]
+                cl["vy_sum"] += view["y"]
+                cl["vz_sum"] += view.get("z", 0.0)
                 return
         self._clusters.append({
             "ability": ability, "map": map,
             "x": position["x"], "y": position["y"], "az": az,
+            "z_sum": float(position.get("z", 0.0)),
+            "vx_sum": view["x"], "vy_sum": view["y"], "vz_sum": view.get("z", 0.0),
             "view": dict(view),
             "rounds": {round_key}, "n": 1, "conf_sum": confidence,
         })
 
     def result(self) -> list[dict]:
+        import math
         out = []
         for cl in self._clusters:
             if len(cl["rounds"]) < self.min_repeats:
                 continue
+            n = cl["n"]
+            # averaged cast altitude + aim pitch for the 3D trajectory view
+            vlen = math.sqrt(cl["vx_sum"] ** 2 + cl["vy_sum"] ** 2
+                             + cl["vz_sum"] ** 2)
+            pitch = (math.degrees(math.asin(max(-1.0, min(1.0, cl["vz_sum"] / vlen))))
+                     if vlen > 1e-6 else 0.0)
             out.append({
                 "ability": cl["ability"], "map": cl["map"],
                 "repeats": len(cl["rounds"]),
                 "total_casts": cl["n"],
                 "position": {"x": round(cl["x"], 1), "y": round(cl["y"], 1)},
+                "position_z": round(cl["z_sum"] / n, 1),
                 "aim_azimuth_deg": round(cl["az"], 1),
+                "aim_pitch_deg": round(pitch, 1),
                 "avg_confidence": round(cl["conf_sum"] / cl["n"], 3),
                 "is_estimate": True,
                 "note": "repeated cast cluster (position/aim tolerance)",

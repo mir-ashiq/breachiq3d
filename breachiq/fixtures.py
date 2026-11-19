@@ -107,6 +107,7 @@ def generate_series(seed: int = 7, n_rounds: int = 40) -> dict:
             })
         rounds.append({
             "round": r, "site": site, "economy": economy,
+            "map": MAPS[r % len(MAPS)], "side": side,
             "first_utility_s": round(float(rng.uniform(3, 15)), 1),
             "plant_s": round(float(rng.uniform(20, 45)), 1),
             "first_death_zone": str(rng.choice(["b-heaven", "a-main", "mid-vents", ""])),

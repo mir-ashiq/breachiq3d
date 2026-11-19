@@ -4,9 +4,18 @@ Judge access policy: the demo must be reachable without credentials from
 submission (Nov 2026) through the end of judging (Feb 3, 2027); see
 docs/COMPLIANCE.md. This API therefore mounts no authentication and adds
 CORS for any origin.
+
+Data sources (honest, never mixed silently):
+  - default: SYNTHETIC fixtures (same schema as the official feeds, no
+    licensed data anywhere in this repo)
+  - BREACHIQ_DATA=real: REAL aggregate findings from the official GRID
+    corpus, served from the committed web/demo-data.json snapshot
+    (aggregate results only - license-safe; rebuild with `make findings`).
 """
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
@@ -20,11 +29,28 @@ from .export import build_brief_pdf
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "fixtures"
 
-app = FastAPI(title="BreachIQ 3D", version="0.1.0",
+app = FastAPI(title="BreachIQ 3D", version="0.2.0",
               description="Spatio-temporal utility trajectory & site-execute "
                           "engine for competitive VALORANT (Sky's The Limit 2026).")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                    allow_headers=["*"])
+
+_SNAPSHOT: dict | None = None
+
+
+def _snapshot() -> dict:
+    """The committed real-corpus aggregate snapshot (or {} if absent)."""
+    global _SNAPSHOT
+    if _SNAPSHOT is None:
+        path = REPO_ROOT / "web" / "demo-data.json"
+        _SNAPSHOT = json.loads(path.read_text()) if path.is_file() else {}
+    return _SNAPSHOT
+
+
+def _real() -> bool:
+    """True when BREACHIQ_DATA=real AND the real snapshot is present."""
+    return (os.environ.get("BREACHIQ_DATA", "synthetic") == "real"
+            and bool(_snapshot().get("REAL")))
 
 
 def _data() -> dict:
@@ -66,40 +92,68 @@ def _atlas(data: dict, map_name: str, side: str = "all",
                                    "Bind in 2855906, Split in 2877148, Abyss/Split merged in 2890334/2890361")
     result["points"] = points
     result["map_selected"] = map_name
+    # real calibrated bounds (m) for the scale bar + 3D aspect ratio
+    b = spatial.BOUNDS[map_name]
+    result["bounds_m"] = {"w": round((b.x_max - b.x_min) / 100.0, 1),
+                          "h": round((b.y_max - b.y_min) / 100.0, 1)}
     return result
+
+
+def _atlas_real(map_name: str, side: str = "all", ability: str = "") -> dict:
+    snap = _snapshot()
+    entry = snap["atlas"].get(map_name)
+    if entry is None:
+        raise HTTPException(404, f"unknown map: {map_name}")
+    s = entry["sides"].get(side) or entry["sides"]["all"]
+    # keep the SIDE's own rounds (e.g. lotus attacker 231 / defender 205),
+    # not the map total
+    out = {**s, "map_selected": map_name,
+           "bounds_m": snap.get("bounds_m", {}).get(map_name)}
+    if ability:
+        out = {**out, "abilities": [a for a in s["abilities"]
+                                    if a["ability"] == ability]}
+    return out
 
 
 @app.get("/health")
 def health() -> dict:
     """Uptime probe used by the monitoring check through Feb 3, 2027."""
-    return {"status": "ok", "service": "breachiq3d", "data": "synthetic"}
+    return {"status": "ok", "service": "breachiq3d",
+            "data": "real GRID corpus aggregates" if _real() else "synthetic"}
 
 
 @app.get("/api/meta")
 def meta() -> dict:
-    return _data()["meta"]
+    if _real():
+        snap = _snapshot()
+        return {"maps": snap["meta"]["maps"], "source": "real-aggregates",
+                "team": snap.get("team", "Cloud9"), "SYNTHETIC": False,
+                "coverage": snap["coverage"]}
+    return {**_data()["meta"], "source": "synthetic"}
 
 
 @app.get("/api/atlas")
 def atlas(map: str = Query(..., description="map name"),
           side: str = Query("all", description="all | attacker | defender"),
           ability: str = Query("", description="exact ability id filter")) -> dict:
-    if map not in spatial.BOUNDS:
-        raise HTTPException(404, f"unknown map: {map}")
     if side not in ("all", "attacker", "defender"):
         raise HTTPException(422, f"invalid side: {side}")
+    if _real():
+        return _atlas_real(map, side=side, ability=ability)
+    if map not in spatial.BOUNDS:
+        raise HTTPException(404, f"unknown map: {map}")
     return _atlas(_data(), map, side=side, ability=ability)
 
 
 @app.get("/api/operator")
 def operator() -> dict:
-    """Operator fingerprint from the SYNTHETIC fixture rounds.
-
-    Deterministic by construction: the fixture generator seeds per-player
-    Operator biases, so this endpoint returns the same numbers on every
-    call (the red team caught an earlier version re-randomizing per
-    request - fabricated data presented as analysis).
+    """Operator fingerprint. Synthetic mode is deterministic by construction
+    (seeded per-player biases; the red team caught an earlier version
+    re-randomizing per request). Real mode serves the committed corpus
+    aggregates.
     """
+    if _real():
+        return _snapshot()["operator"]
     return _operator_from_rounds(_data(), features.OperatorFingerprint())
 
 
@@ -114,18 +168,23 @@ def _operator_from_rounds(data: dict, fp: features.OperatorFingerprint) -> dict:
         for p in PLAYERS:
             fp.add_round(player=p, agent=agent_of[p],
                          bought_operator=p in buyers,
-                         hold_start_s=holds.get(p))
+                         hold_start_s=holds.get(p),
+                         hold_map=r.get("map"))
     return fp.result()
 
 
 @app.get("/api/lineups")
 def lineups(map: str = Query("", description="optional map filter")) -> dict:
-    """Repeated utility lineups detected in the SYNTHETIC demo corpus.
-
-    Same detector as the real-data findings (docs/FINDINGS.md): same
-    ability cast from within 200 cm with aim within 10 degrees in 3+
-    distinct rounds.
+    """Repeated utility lineups (same detector as the real findings,
+    docs/FINDINGS.md): same ability cast from within 200 cm with aim within
+    10 degrees in 3+ distinct rounds. Every entry carries a 3D trajectory
+    ESTIMATE (aim-ray projection; GRID provides no projectile telemetry).
     """
+    if _real():
+        rows = [l for l in _snapshot()["lineups"]["lineups"]
+                if not map or l["map"] == map]
+        return {"lineups": rows,
+                "data": "real GRID corpus aggregates (see docs/FINDINGS.md)"}
     data = _data()
     det = features.LineupDetector()
     for cast in data["casts"]:
@@ -144,12 +203,20 @@ def lineups(map: str = Query("", description="optional map filter")) -> dict:
         if bounds and "position" in l:
             u, v = spatial.normalize_position(l["position"], bounds)
             l["u"], l["v"] = round(u, 4), round(v, 4)
+            l["trajectory"] = spatial.lineup_trajectory(
+                position={**l["position"], "z": l.get("position_z", 0.0)},
+                aim_azimuth_deg=l["aim_azimuth_deg"],
+                aim_pitch_deg=l.get("aim_pitch_deg", 0.0),
+                ability_class=features.ABILITY_CLASS.get(l["ability"], "recon"),
+                bounds=bounds, confidence=l["avg_confidence"])
         out.append(l)
     return {"lineups": out, "data": "SYNTHETIC demo corpus"}
 
 
 @app.get("/api/pacing")
 def pacing() -> dict:
+    if _real():
+        return _snapshot()["pacing"]
     data = _data()
     ep = features.ExecutePacing()
     for r in data["rounds"]:
@@ -161,13 +228,14 @@ def pacing() -> dict:
 
 @app.get("/api/brief.pdf")
 def brief_pdf(map: str = "split") -> Response:
-    data = _data()
-    atlas = _atlas(data, map)
+    # explicit kwargs: calling the endpoint directly would otherwise pass
+    # the raw Query() defaults through
+    atlas_body = atlas(map=map, side="all", ability="")
     op = operator()
-    cues = features.counter_brief(atlas, op)
-    top = atlas["abilities"][0] if atlas["abilities"] else {}
+    cues = features.counter_brief(atlas_body, op)
+    top = atlas_body["abilities"][0] if atlas_body["abilities"] else {}
     pdf = build_brief_pdf(
-        title=f"{map} vs demo opponent",
+        title=f"{map} vs demo opponent" if not _real() else f"{map} vs Cloud9 (real aggregates)",
         cues=cues,
         evidence=top.get("evidence", {"rounds": 0, "matches": 0, "patch": "-"}))
     return Response(pdf, media_type="application/pdf",

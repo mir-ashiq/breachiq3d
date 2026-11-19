@@ -27,9 +27,12 @@ stay live through **Feb 3, 2027**; winners announced on or around **Feb 8**.
 ## Week 3 (Dec 1–7): tactical canvas
 
 - [ ] Frontend consumes the OpenAPI contract (`/openapi.json`)
-- [ ] Filter rail: team, map, player, agent, composition, patch, side,
-      weapon, ability (the brief's full list)
-- [ ] Trajectory overlays, layer toggles, keyboard shortcut polish
+- [x] Trajectory overlays, layer toggles, keyboard shortcut polish —
+      **shipped early (Nov 19)**: orbitable 3D trajectory viewer (density
+      terrain + lineup arcs → labeled landing estimates), layer toggles,
+      keyboard shortcuts, hold-angle overlay, URL state, data table
+- [ ] Filter rail: team, player, agent, composition, patch, weapon (map +
+      side + ability already live and partition-tested)
 - [ ] Stretch (cost-boxed 2 days, only if above is green): small JetBrains
       integration — Junie run-book commands or a PyCharm/IDEA tool window
       that opens a series' evidence report (dossier gap: no rival ships a

@@ -176,7 +176,7 @@ def main() -> None:
                         {"x": pos["x"], "y": pos["y"]}, mb)
                 op_fp.add_round(player=pname, agent=p["agent"] or "unknown",
                                 bought_operator=bought,
-                                hold_position=hold_uv)
+                                hold_position=hold_uv, hold_map=r["map"])
             if holders:
                 op_rounds += 1
                 fk = r.get("first_kill") or {}
@@ -338,11 +338,18 @@ def main() -> None:
         def with_uv(l: dict) -> dict:
             b = bounds_by_map.get(l["map"])
             if b and "position" in l:
-                u, v = spatial.normalize_position(
-                    l["position"], spatial.MapBounds(
-                        b["min"]["x"], b["max"]["x"],
-                        b["min"]["y"], b["max"]["y"]))
+                mb = spatial.MapBounds(b["min"]["x"], b["max"]["x"],
+                                       b["min"]["y"], b["max"]["y"])
+                u, v = spatial.normalize_position(l["position"], mb)
                 l = {**l, "u": round(u, 4), "v": round(v, 4)}
+                traj = spatial.lineup_trajectory(
+                    position={**l["position"], "z": l.get("position_z", 0.0)},
+                    aim_azimuth_deg=l["aim_azimuth_deg"],
+                    aim_pitch_deg=l.get("aim_pitch_deg", 0.0),
+                    ability_class=ability_class(l["ability"]),
+                    bounds=mb, confidence=l["avg_confidence"])
+                if traj:
+                    l = {**l, "trajectory": traj}
             return l
 
         demo_atlas: dict[str, dict] = {}
@@ -385,6 +392,10 @@ def main() -> None:
                                     "2890334/2890361 (officially excluded)"),
             },
             "atlas": demo_atlas,
+            "bounds_m": {
+                m: {"w": round((b["max"]["x"] - b["min"]["x"]) / 100.0, 1),
+                    "h": round((b["max"]["y"] - b["min"]["y"]) / 100.0, 1)}
+                for m, b in sorted(bounds_by_map.items())},
             "lineups": {"lineups": [with_uv(l) for l in lineup_result[:20]],
                         "data": "real GRID corpus aggregates"},
             "operator": {**op_result,

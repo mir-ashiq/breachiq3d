@@ -9,7 +9,7 @@ Category 1 · Cloud9 × JetBrains *Sky's The Limit* Hackathon 2026
 [![CI](https://github.com/mir-ashiq/breachiq3d/actions/workflows/ci.yml/badge.svg)](https://github.com/mir-ashiq/breachiq3d/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-`tests: 51 passed` · `python 3.12` · `no build step` · live demo: **https://mir-ashiq.github.io/breachiq3d/** (REAL corpus aggregates)
+`tests: 68 passed` · `python 3.12` · `no build step` · live demo: **https://mir-ashiq.github.io/breachiq3d/** (REAL corpus aggregates)
 
 </div>
 
@@ -35,6 +35,14 @@ zones, and a one-page **PDF brief export**. Every view carries an
 **evidence bar**: rounds, matches, patch recency, coverage, and data-quality
 mix — because a number without its sample size is how analytics tools lose.
 
+The dashboard includes a **3D trajectory viewer** (drag to orbit): the
+cast-density terrain per map/side plus every repeated lineup rendered as a
+3D arc from cast position to its **labeled landing estimate** — aim-ray
+projection with class-based reach, honestly marked `estimate` because GRID
+provides no projectile telemetry. Operator hold angles overlay on the
+minimap (click a player), the full ability table is one click deep, and
+every view state is shareable via the URL hash.
+
 ## What it finds on the real corpus (Cloud9, 28 series)
 
 Computed by `scripts/build_findings.py` from the official GRID starter data
@@ -57,20 +65,28 @@ Full detail: [docs/FINDINGS.md](docs/FINDINGS.md).
 
 ```bash
 make setup          # venv + pinned deps + pre-push data guard
-make demo           # http://127.0.0.1:8000/app  (dark tactical dashboard)
-make test           # pytest suite (51 tests)
+make demo           # http://127.0.0.1:8000/app  (SYNTHETIC fixtures)
+make demo-real      # same UI + API on REAL corpus aggregates (zero clone)
+make test           # pytest suite (68 tests)
 make verify         # benchmark + coverage + render smoke check
 make audit          # data-leak audit (CI runs the same check)
 ```
 
-The **live demo shows REAL aggregate findings** from the official GRID
-corpus (per-map/per-side utility atlases, cast-density heat, repeated
-lineups, Operator profile, pacing, outcomes) — license-safe: aggregate
-results only, no raw data is redistributed in this repo, ever (see
-`docs/COMPLIANCE.md`). The local API (`make demo`) serves **SYNTHETIC
-fixtures** in the same schema so you can develop and test without the
-corpus. To rebuild the real findings and the demo snapshot (~15 min on a
-laptop):
+Three data modes, never mixed silently (`/health` and `/api/meta` always
+say which one is live):
+
+- **live demo** (GitHub Pages) — **REAL aggregate findings** from the
+  official GRID corpus: per-map/per-side utility atlases, cast-density
+  heat, 3D lineup trajectories, Operator profile with hold angles, pacing,
+  outcomes. License-safe: aggregate results only, no raw data is
+  redistributed in this repo, ever (see `docs/COMPLIANCE.md`).
+- **`make demo-real`** — the same dashboard and API locally on the
+  committed real-aggregate snapshot; no 2.7 GB clone needed.
+- **`make demo`** — SYNTHETIC fixtures in the exact feed schema, for
+  development and tests without the corpus.
+
+To rebuild the real findings and the demo snapshot from scratch (~15 min
+on a laptop):
 
 ```bash
 git clone https://github.com/cloud9esports/stl-hackathon-2026-grid-starter.git ../grid-data
@@ -100,8 +116,9 @@ breachiq/features.py taxonomy · atlas · operator fingerprint (+hold
         ▼
 breachiq/api.py      FastAPI · no-auth public demo · OpenAPI contract
         ▼
-web/                 canvas minimap + cast points + lineup markers ·
-                    evidence bar · static GitHub-Pages demo mode
+web/                 tactical-chart minimap (soft density heat, calibrated
+                    meter scale bar) + orbitable 3D trajectory viewer +
+                    hold-angle overlay + evidence bar · three data modes
 ```
 
 ## Data honesty (verified against the supplement README)

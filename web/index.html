@@ -33,8 +33,28 @@
         <span><i class="chip" style="background:var(--heat-2)"></i>mid</span>
         <span><i class="chip" style="background:var(--heat-3)"></i>high</span>
         <span><i class="chip" style="background:var(--heat-4)"></i>extreme</span>
-        <span>· dots = cast points · ★ = repeated lineup</span>
+        <span>· heat = cast density · ★ = repeated lineup</span>
+        <span id="hold-note"></span>
         <span id="map-note"></span>
+        <span style="color:var(--text-dim)">schematic — GRID provides no map geometry; scale bar from calibrated map.bounds</span>
+      </div>
+    </div>
+
+    <details id="atlas-table" class="card inset"></details>
+
+    <div class="card" id="v3-card">
+      <h2>3D trajectory view
+        <span class="v3-controls">
+          <button class="ghost small" id="v3-auto">⏸ orbit</button>
+          <button class="ghost small" id="v3-reset">⌂ reset</button>
+        </span>
+      </h2>
+      <canvas id="traj3d" width="800" height="560"></canvas>
+      <div class="legend">
+        <span>drag to orbit · wheel to zoom</span>
+        <span>· columns = cast density (height exaggerated)</span>
+        <span>· arcs = lineup trajectories → landing estimates (no projectile telemetry in GRID)</span>
+        <span id="v3-note"></span>
       </div>
     </div>
 
@@ -42,7 +62,9 @@
 
     <div id="side-card">
       <div class="card">
-        <h2>Operator / Odin fingerprint</h2>
+        <h2>Operator / Odin fingerprint
+          <span class="hint">click a player to map their hold angles</span>
+        </h2>
         <div id="operator" class="rows"><div class="state">loading…</div></div>
       </div>
       <div class="card">
@@ -73,13 +95,13 @@
   <div class="card">
     <h2>60-second cold start</h2>
     <ol>
-      <li>Pick a <b>map</b> in the header — the atlas shows where utility lands, by frequency tier.</li>
-      <li>Check the <b>evidence bar</b> under the map: every number carries its sample size.</li>
-      <li>Hover the <b>repeated lineups</b>: set plays you can pre-aim, with repeat counts.</li>
-      <li>Read the <b>counter-brief</b> (right): prescriptive cues, not stats.</li>
-      <li>Export a one-page <b>PDF brief</b> for between scrims.</li>
+      <li>Pick a <b>map</b> in the header — the atlas shows where utility lands, by frequency tier. Side and ability filters actually filter.</li>
+      <li>Check the <b>evidence bar</b>: every number carries its sample size.</li>
+      <li>Orbit the <b>3D view</b>: density terrain + lineup trajectory arcs (estimates).</li>
+      <li>Click a player in the <b>Operator fingerprint</b> to map their hold angles; click a lineup to highlight its arc.</li>
+      <li>Read the <b>counter-brief</b> (right): prescriptive cues, not stats. Export a PDF between scrims.</li>
     </ol>
-    <p>Keyboard shortcut map: <kbd>1</kbd> atlas · <kbd>2</kbd> operator · <kbd>3</kbd> pacing · <kbd>b</kbd> brief · <kbd>r</kbd> refresh · <kbd>?</kbd> this tour</p>
+    <p>Keyboard shortcut map: <kbd>1</kbd> atlas · <kbd>2</kbd> operator · <kbd>3</kbd> pacing · <kbd>4</kbd> 3D view · <kbd>b</kbd> brief · <kbd>r</kbd> refresh · <kbd>?</kbd> this tour</p>
     <p><button id="btn-start">I'm ready</button></p>
   </div>
 </div>

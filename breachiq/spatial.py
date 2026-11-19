@@ -232,3 +232,53 @@ def estimate_landing(cast: dict, ability_class: str,
         conf *= 0.7
         notes.append("low-rate series (1 Hz): down-weighted")
     return LandingEstimate(u=u, v=v, confidence=round(conf, 3), notes=notes)
+
+
+def lineup_trajectory(*, position: dict, aim_azimuth_deg: float,
+                      aim_pitch_deg: float, ability_class: str,
+                      bounds: MapBounds, confidence: float = 1.0) -> dict:
+    """3D trajectory polyline for a repeated lineup: cast point -> arc ->
+    landing estimate, for the 3D viewer.
+
+    Same aim-ray projection as estimate_landing (class-based reach, clamped
+    to playable bounds); the arc is a quadratic Bezier through the cast
+    altitude and an apex ESTIMATE. GRID provides no projectile telemetry -
+    every point is a labeled estimate.
+    """
+    az = math.radians(aim_azimuth_deg)
+    pit = math.radians(aim_pitch_deg)
+    view = {"x": math.cos(pit) * math.cos(az),
+            "y": math.cos(pit) * math.sin(az),
+            "z": math.sin(pit)}
+    reach = ABILITY_RANGE.get(ability_class, DEFAULT_RANGE)
+    horiz = math.hypot(view["x"], view["y"])
+    z0 = max(0.0, float(position.get("z", 0.0))) / 100.0   # cm -> m
+    if horiz <= 1e-6:
+        end = {"x": position["x"], "y": position["y"]}
+        notes = ["vertical cast"]
+    else:
+        end = {"x": position["x"] + view["x"] / horiz * reach,
+               "y": position["y"] + view["y"] / horiz * reach}
+        notes = []
+    u0, v0 = normalize_position(position, bounds)
+    u1, v1 = normalize_position(end, bounds)
+    if not (0.0 <= u1 <= 1.0 and 0.0 <= v1 <= 1.0):
+        u1, v1 = min(1.0, max(0.0, u1)), min(1.0, max(0.0, v1))
+        notes.append("clamped to playable bounds")
+    # a few real casts sit outside the recorded playable bounds (e.g. spawn
+    # areas): clamp the DISPLAYED start point and say so, never hide it
+    if not (0.0 <= u0 <= 1.0 and 0.0 <= v0 <= 1.0):
+        u0, v0 = min(1.0, max(0.0, u0)), min(1.0, max(0.0, v0))
+        notes.append("cast position clamped to playable bounds for display")
+    apex = z0 + max(0.8, math.sin(max(0.0, pit)) * reach / 100.0 * 0.4 + 0.8)
+    pts = []
+    for i in range(13):
+        t = i / 12.0
+        z = (1 - t) ** 2 * z0 + 2 * t * (1 - t) * apex
+        pts.append([round(u0 + (u1 - u0) * t, 4),
+                    round(v0 + (v1 - v0) * t, 4), round(z, 2)])
+    notes.append("GRID provides no projectile telemetry; arc is an estimate")
+    return {"points": pts, "landing": [round(u1, 4), round(v1, 4), 0.0],
+            "apex_m": round(apex, 2),
+            "confidence": round(confidence, 3), "is_estimate": True,
+            "notes": notes}
