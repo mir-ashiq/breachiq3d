@@ -1,0 +1,6 @@
+# Normalized line endings; binary safety for fixtures
+* text=auto
+*.gz binary
+*.zst binary
+*.pdf binary
+*.png binary

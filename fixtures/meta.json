@@ -1,0 +1,14 @@
+{
+  "SYNTHETIC": true,
+  "generator": "breachiq.fixtures",
+  "note": "synthetic data only - no GRID/Riot/Cloud9 data in this repo",
+  "seed": 7,
+  "patch": "11.08",
+  "maps": [
+    "split",
+    "ascent",
+    "bind",
+    "haven"
+  ],
+  "generated": "2026-11-18"
+}

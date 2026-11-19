@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BreachIQ 3D — Tactical Scouting Console</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>BreachIQ<span>3D</span></h1>
+    <span class="badge">Category 1 · VALORANT Tactical Scouting</span>
+    <span class="badge estimate">landing zones = estimates</span>
+    <div id="filters" aria-label="filter rail">
+      <label>map <select id="f-map"></select></label>
+      <label>side <select id="f-side"><option>all</option><option>attack</option><option>defense</option></select></label>
+      <label>patch <select id="f-patch"><option>all</option><option>11.08</option></select></label>
+      <label>ability <select id="f-ability"><option>all</option></select></label>
+    </div>
+    <span style="flex:1"></span>
+    <button class="ghost" id="btn-refresh">refresh (r)</button>
+    <button id="btn-brief">export brief (PDF)</button>
+  </header>
+
+  <main>
+    <div class="card" id="map-card">
+      <h2>Utility atlas <span id="layer-toggles"></span></h2>
+      <canvas id="minimap" width="800" height="800"></canvas>
+      <div class="legend">
+        <span><i class="chip" style="background:var(--heat-1)"></i>low</span>
+        <span><i class="chip" style="background:var(--heat-2)"></i>mid</span>
+        <span><i class="chip" style="background:var(--heat-3)"></i>high</span>
+        <span><i class="chip" style="background:var(--heat-4)"></i>extreme</span>
+        <span id="map-note"></span>
+      </div>
+    </div>
+
+    <div id="evidence" class="card" aria-live="polite"></div>
+
+    <div id="side-card">
+      <div class="card">
+        <h2>Operator / Odin fingerprint</h2>
+        <div id="operator" class="rows"><div class="state">loading…</div></div>
+      </div>
+      <div class="card">
+        <h2>Counter-brief (anti-strat)</h2>
+        <div id="cues"><div class="state">loading…</div></div>
+      </div>
+    </div>
+
+    <div class="card" id="pacing-card">
+      <h2>Site-execute pacing &amp; economy collapse</h2>
+      <div id="pacing" class="rows"><div class="state">loading…</div></div>
+    </div>
+  </main>
+
+  <footer>
+    BreachIQ 3D · Cloud9 × JetBrains Sky's The Limit 2026 · demo runs on
+    SYNTHETIC data (no GRID data is redistributed) · every landing zone is a
+    labeled raycast estimate
+  </footer>
+</div>
+
+<div id="onboarding" class="hidden" role="dialog" aria-label="onboarding">
+  <div class="card">
+    <h2>60-second cold start</h2>
+    <ol>
+      <li>Pick a <b>map</b> in the header — the atlas shows where utility lands, by frequency tier.</li>
+      <li>Check the <b>evidence bar</b> under the map: every number carries its sample size.</li>
+      <li>Read the <b>counter-brief</b> (right): prescriptive cues, not stats.</li>
+      <li>Export a one-page <b>PDF brief</b> for between scrims.</li>
+    </ol>
+    <p>Keyboard shortcut map: <kbd>1</kbd> atlas · <kbd>2</kbd> operator · <kbd>3</kbd> pacing · <kbd>b</kbd> brief · <kbd>r</kbd> refresh · <kbd>?</kbd> this tour</p>
+    <p><button id="btn-start">I'm ready</button></p>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
