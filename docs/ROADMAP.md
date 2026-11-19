@@ -1,5 +1,10 @@
 # Roadmap — Nov 17, 2026 → Jan 12, 2027 (verified dates)
 
+> Two-track execution (backend = Ashiq, frontend = Sann), phase gates,
+> the 50/50 contribution plan, and win-probability engineering live in
+> [TEAM_ROADMAP.md](TEAM_ROADMAP.md). This file keeps the verified
+> timeline anchors and weekly theme.
+
 Anchors (verified against the official rules + JetBrains blog):
 registration opened **Nov 17, 11:00 am PT**; office hours **Dec 9, 10:00 am
 PT**; submission deadline **Jan 12, 2027, 11:00 am PT**; judge access must

@@ -15,7 +15,12 @@
 
 - Branch per feature: `feat/<name>`, `fix/<name>`.
 - CI must pass (tests + data-leak audit + pipeline verification).
-- Conventional commits; squash-merge to main.
+- Conventional commits; **rebase-merge** to main — squash-merge is
+  disabled in repo settings because it collapses PRs into single
+  commits and erases per-member attribution (the 50/50 contribution
+  plan in docs/TEAM_ROADMAP.md requires every commit to land with its
+  true author). Never push directly to main.
+- The other track's lead reviews every PR before merge.
 
 ## Feature freeze (week 6, per ROADMAP)
 
