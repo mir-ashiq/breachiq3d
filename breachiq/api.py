@@ -47,8 +47,12 @@ def _snapshot() -> dict:
     return _SNAPSHOT
 
 
-def _real() -> bool:
-    """True when BREACHIQ_DATA=real AND the real snapshot is present."""
+def _real(data_param: str = "") -> bool:
+    """True when BREACHIQ_DATA=real OR data_param='real' AND the real snapshot is present."""
+    if data_param == "real":
+        return bool(_snapshot().get("REAL"))
+    if data_param == "synthetic":
+        return False
     return (os.environ.get("BREACHIQ_DATA", "synthetic") == "real"
             and bool(_snapshot().get("REAL")))
 
@@ -168,15 +172,15 @@ def _atlas_real(map_name: str, side: str = "all", ability: str = "",
 
 
 @app.get("/health")
-def health() -> dict:
+def health(data: str = Query("", description="optional data mode override")) -> dict:
     """Uptime probe used by the monitoring check through Feb 3, 2027."""
     return {"status": "ok", "service": "breachiq3d",
-            "data": "real GRID corpus aggregates" if _real() else "synthetic"}
+            "data": "real GRID corpus aggregates" if _real(data) else "synthetic"}
 
 
 @app.get("/api/meta")
-def meta() -> dict:
-    if _real():
+def meta(data: str = Query("", description="optional data mode override")) -> dict:
+    if _real(data):
         snap = _snapshot()
         return {"maps": snap["meta"]["maps"], "source": "real-aggregates",
                 "team": snap.get("team", "Cloud9"), "SYNTHETIC": False,
@@ -201,12 +205,13 @@ def atlas(map: str = Query(..., description="map name"),
           player: str = Query("", description="roster filter, e.g. Alpha "
                               "(points-scope in real-aggregate mode)"),
           agent: str = Query("", description="agent filter, e.g. cypher "
-                             "(points-scope in real-aggregate mode)")
+                             "(points-scope in real-aggregate mode)"),
+          data: str = Query("", description="optional data mode override")
           ) -> dict:
     side = _SIDE_ALIASES.get(side, side)
     if side not in ("all", "attacker", "defender"):
         raise HTTPException(422, f"invalid side: {side}")
-    if _real():
+    if _real(data):
         return _atlas_real(map, side=side, ability=ability, patch=patch,
                            player=player, agent=agent)
     if map not in spatial.BOUNDS:
@@ -216,13 +221,13 @@ def atlas(map: str = Query(..., description="map name"),
 
 
 @app.get("/api/operator")
-def operator() -> dict:
+def operator(data: str = Query("", description="optional data mode override")) -> dict:
     """Operator fingerprint. Synthetic mode is deterministic by construction
     (seeded per-player biases; the red team caught an earlier version
     re-randomizing per request). Real mode serves the committed corpus
     aggregates.
     """
-    if _real():
+    if _real(data):
         return _snapshot()["operator"]
     return _operator_from_rounds(_data(), features.OperatorFingerprint())
 
@@ -247,20 +252,21 @@ def _operator_from_rounds(data: dict, fp: features.OperatorFingerprint) -> dict:
 
 
 @app.get("/api/lineups")
-def lineups(map: str = Query("", description="optional map filter")) -> dict:
+def lineups(map: str = Query("", description="optional map filter"),
+            data: str = Query("", description="optional data mode override")) -> dict:
     """Repeated utility lineups (same detector as the real findings,
     docs/FINDINGS.md): same ability cast from within 200 cm with aim within
     10 degrees in 3+ distinct rounds. Every entry carries a 3D trajectory
     ESTIMATE (aim-ray projection; GRID provides no projectile telemetry).
     """
-    if _real():
+    if _real(data):
         rows = [l for l in _snapshot()["lineups"]["lineups"]
                 if not map or l["map"] == map]
         return {"lineups": rows,
                 "data": "real GRID corpus aggregates (see docs/FINDINGS.md)"}
-    data = _data()
+    data_dict = _data()
     det = features.LineupDetector()
-    for cast in data["casts"]:
+    for cast in data_dict["casts"]:
         if map and cast["map"] != map:
             continue
         state = spatial.cast_state(cast)
@@ -287,12 +293,12 @@ def lineups(map: str = Query("", description="optional map filter")) -> dict:
 
 
 @app.get("/api/pacing")
-def pacing() -> dict:
-    if _real():
+def pacing(data: str = Query("", description="optional data mode override")) -> dict:
+    if _real(data):
         return _snapshot()["pacing"]
-    data = _data()
+    data_dict = _data()
     ep = features.ExecutePacing()
-    for r in data["rounds"]:
+    for r in data_dict["rounds"]:
         ep.add_round(site=r["site"], first_utility_s=r["first_utility_s"],
                      plant_s=r["plant_s"], economy=r["economy"],
                      first_death_zone=r.get("first_death_zone") or None)
@@ -300,15 +306,16 @@ def pacing() -> dict:
 
 
 @app.get("/api/brief.pdf")
-def brief_pdf(map: str = "split") -> Response:
+def brief_pdf(map: str = "split",
+              data: str = Query("", description="optional data mode override")) -> Response:
     # explicit kwargs: calling the endpoint directly would otherwise pass
     # the raw Query() defaults through
-    atlas_body = atlas(map=map, side="all", ability="")
-    op = operator()
+    atlas_body = atlas(map=map, side="all", ability="", data=data)
+    op = operator(data=data)
     cues = features.counter_brief(atlas_body, op)
     top = atlas_body["abilities"][0] if atlas_body["abilities"] else {}
     pdf = build_brief_pdf(
-        title=f"{map} vs demo opponent" if not _real() else f"{map} vs Cloud9 (real aggregates)",
+        title=f"{map} vs demo opponent" if not _real(data) else f"{map} vs Cloud9 (real aggregates)",
         cues=cues,
         evidence=top.get("evidence", {"rounds": 0, "matches": 0, "patch": "-"}))
     return Response(pdf, media_type="application/pdf",

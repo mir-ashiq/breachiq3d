@@ -56,32 +56,52 @@ function hideOnboarding() {
 /* ---------------- Network Fetch with Fallbacks ---------------- */
 async function get(path) {
   if (DEMO) return demoRoute(path);
-  const res = await fetch(API + path);
-  if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
-  return res.json();
+  const sep = path.includes("?") ? "&" : "?";
+  const fullPath = !path.includes("data=") ? `${path}${sep}data=real` : path;
+  try {
+    const res = await fetch(API + fullPath);
+    if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
+    return await res.json();
+  } catch (err) {
+    if (DEMO_DATA) return demoRoute(path);
+    throw err;
+  }
 }
 
 function demoRoute(path) {
   const url = new URL(path, "http://x");
-  const map = url.searchParams.get("map") || "split";
+  const map = (url.searchParams.get("map") || "split").toLowerCase();
   const side = url.searchParams.get("side") || "all";
   const ability = url.searchParams.get("ability") || "";
+  const player = url.searchParams.get("player") || "";
+  const agent = url.searchParams.get("agent") || "";
+
   if (path.startsWith("/api/meta")) return DEMO_DATA.meta;
   if (path.startsWith("/api/atlas")) {
     const m = DEMO_DATA.atlas[map] || DEMO_DATA.atlas.split;
     if (!m) throw new Error(`unknown map: ${map}`);
     const s = m.sides[side] || m.sides.all;
-    const abilities = ability
-      ? s.abilities.filter(a => a.ability === ability) : s.abilities;
+    let abilities = s.abilities || [];
+    if (ability) abilities = abilities.filter(a => a.ability === ability);
+
+    let points = s.points || [];
+    if (ability) points = points.filter(p => p.ability === ability);
+    if (player && player !== "all") points = points.filter(p => p.player === player);
+    if (agent && agent !== "all") points = points.filter(p => p.agent === agent);
+
     return {
-      ...s, abilities, map_selected: map,
-      bounds_m: DEMO_DATA.bounds_m[map] || { w: 110, h: 120 },
-      coverage: s.abilities[0]?.evidence?.coverage || ""
+      ...s, abilities, points, map_selected: map,
+      bounds_m: (DEMO_DATA.bounds_m && DEMO_DATA.bounds_m[map]) || { w: 110, h: 120 },
+      coverage: s.abilities?.[0]?.evidence?.coverage || DEMO_DATA.coverage || ""
     };
   }
   if (path.startsWith("/api/operator")) return DEMO_DATA.operator;
   if (path.startsWith("/api/pacing")) return DEMO_DATA.pacing;
-  if (path.startsWith("/api/lineups")) return DEMO_DATA.lineups;
+  if (path.startsWith("/api/lineups")) {
+    const m = url.searchParams.get("map");
+    const rows = (DEMO_DATA.lineups?.lineups || []).filter(l => !m || l.map === m);
+    return { lineups: rows, data: "demo-data.json aggregates" };
+  }
   throw new Error(`no demo route for ${path}`);
 }
 
@@ -126,7 +146,7 @@ function atlasQuery() {
   const ability = $("f-ability").value || "";
   const player = $("f-player") ? $("f-player").value : "all";
   const agent = $("f-agent") ? $("f-agent").value : "all";
-  let q = `/api/atlas?map=${encodeURIComponent(map)}&side=${encodeURIComponent(side)}`;
+  let q = `/api/atlas?map=${encodeURIComponent(map)}&side=${encodeURIComponent(side)}&data=real`;
   if (ability) q += `&ability=${encodeURIComponent(ability)}`;
   if (player && player !== "all") q += `&player=${encodeURIComponent(player)}`;
   if (agent && agent !== "all") q += `&agent=${encodeURIComponent(agent)}`;
@@ -134,69 +154,114 @@ function atlasQuery() {
 }
 
 /* ---------------- Map Blueprint Floorplan Renderer ----------------
-   Renders accurate VALORANT map geometry: site perimeters, chokepoints,
-   ramps, spawns, and tactical callout overlays. */
-function drawMapFloorplan(ctx, mapName, W, H) {
+   Renders calibrated VALORANT tactical radar geometry: coordinate grid,
+   concentric range circles, cardinal directions, and tournament site brackets. */
+function drawMapFloorplan(ctx, mapName, W, H, bounds) {
   const map = (mapName || "split").toLowerCase();
+  const cx = W / 2, cy = H / 2;
 
-  // Dark tactical blueprint base
-  ctx.fillStyle = "#070c14";
+  // 1. Dark tactical radar base
+  ctx.fillStyle = "#050811";
   ctx.fillRect(0, 0, W, H);
 
-  // High-tech circular radar grid rings
-  const cx = W / 2, cy = H / 2;
+  // Subtle radial vignette
+  const radGrad = ctx.createRadialGradient(cx, cy, 40, cx, cy, W * 0.7);
+  radGrad.addColorStop(0, "rgba(0, 210, 255, 0.04)");
+  radGrad.addColorStop(0.7, "rgba(6, 11, 20, 0.4)");
+  radGrad.addColorStop(1, "rgba(2, 4, 8, 0.9)");
+  ctx.fillStyle = radGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // 2. 8x8 Tactical Military Coordinate Grid
+  ctx.save();
   ctx.strokeStyle = "rgba(0, 210, 255, 0.05)";
   ctx.lineWidth = 1;
-  for (let r = 80; r < Math.max(W, H) * 0.7; r += 100) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.stroke();
+  const cols = 8;
+  const cellW = W / cols, cellH = H / cols;
+
+  for (let i = 1; i < cols; i++) {
+    ctx.beginPath(); ctx.moveTo(i * cellW, 0); ctx.lineTo(i * cellW, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * cellH); ctx.lineTo(W, i * cellH); ctx.stroke();
   }
 
-  // Crosshair coordinate axes
-  ctx.strokeStyle = "rgba(0, 210, 255, 0.08)";
+  // Grid coordinates labels (01..08 at top, A..H at left)
+  ctx.fillStyle = "rgba(100, 116, 139, 0.45)";
+  ctx.font = "bold 9px 'JetBrains Mono', monospace";
+  for (let i = 0; i < cols; i++) {
+    ctx.fillText(`0${i + 1}`, (i + 0.5) * cellW - 6, 14);
+    ctx.fillText(String.fromCharCode(65 + i), 6, (i + 0.5) * cellH + 3);
+  }
+
+  // 3. Concentric Calibrated Range Circles (25m, 50m, 75m, 100m)
+  const mapW_m = (bounds && bounds.w) ? bounds.w : 100;
+  const pxPerMeter = W / mapW_m;
+  const distances = [25, 50, 75, 100];
+
+  distances.forEach(d => {
+    const r = d * pxPerMeter;
+    if (r > 20 && r < W * 0.72) {
+      ctx.strokeStyle = "rgba(0, 210, 255, 0.08)";
+      ctx.setLineDash([4, 6]);
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "rgba(0, 210, 255, 0.35)";
+      ctx.font = "bold 8px 'JetBrains Mono', monospace";
+      ctx.fillText(`${d}M`, cx + r + 3, cy - 2);
+    }
+  });
+
+  // 4. Center Crosshairs & Cardinal Direction Ticks
+  ctx.strokeStyle = "rgba(0, 210, 255, 0.12)";
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(cx, 0); ctx.lineTo(cx, H);
-  ctx.moveTo(0, cy); ctx.lineTo(W, cy);
+  ctx.moveTo(cx, 16); ctx.lineTo(cx, H - 16);
+  ctx.moveTo(16, cy); ctx.lineTo(W - 16, cy);
   ctx.stroke();
 
-  // Fine 16x16 tactical grid
-  ctx.strokeStyle = "rgba(28, 43, 62, 0.4)";
-  for (let i = 1; i < 16; i++) {
-    ctx.beginPath(); ctx.moveTo(W * i / 16, 0); ctx.lineTo(W * i / 16, H); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, H * i / 16); ctx.lineTo(W, H * i / 16); ctx.stroke();
-  }
+  // Cardinal compass indicators
+  ctx.fillStyle = "#00d2ff";
+  ctx.font = "bold 11px 'Rajdhani', sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("▲ N", cx, 24);
+  ctx.fillStyle = "rgba(100, 116, 139, 0.7)";
+  ctx.fillText("▼ S", cx, H - 12);
+  ctx.textAlign = "left";
+  ctx.fillText("▶ E", W - 26, cy + 4);
+  ctx.fillText("◀ W", 10, cy + 4);
+  ctx.textAlign = "left";
 
-  ctx.save();
+  // Center target reticle
+  ctx.strokeStyle = "rgba(0, 210, 255, 0.3)";
+  ctx.beginPath();
+  ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+  ctx.stroke();
 
-  // Draw architectural corridors and site outlines based on map layout
-  const drawCorridor = (coords) => {
-    ctx.fillStyle = "#0c1522";
-    ctx.strokeStyle = "#1e334d";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(coords[0][0] * W, coords[0][1] * H);
-    for (let i = 1; i < coords.length; i++) {
-      ctx.lineTo(coords[i][0] * W, coords[i][1] * H);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  };
+  // 5. Tactical Bombsite Brackets & Zones
+  const isThreeSite = (map === "haven" || map === "lotus");
 
-  const drawSiteBox = (x, y, w, h, label, isSite = true) => {
+  const drawZoneBracket = (x, y, w, h, label, isSite = true) => {
     const rx = x * W, ry = y * H, rw = w * W, rh = h * H;
-    // Glow border
-    ctx.strokeStyle = isSite ? "rgba(255, 70, 85, 0.5)" : "rgba(0, 210, 255, 0.35)";
-    ctx.lineWidth = 1.5;
-    ctx.fillStyle = isSite ? "rgba(255, 70, 85, 0.08)" : "rgba(0, 210, 255, 0.05)";
-    ctx.fillRect(rx, ry, rw, rh);
-    ctx.strokeRect(rx, ry, rw, rh);
+    const cLen = 10;
+    const col = isSite ? "#ff4655" : "#00d2ff";
+    const bgCol = isSite ? "rgba(255, 70, 85, 0.05)" : "rgba(0, 210, 255, 0.03)";
 
-    // Site plant boundary corners
-    const cLen = 8;
-    ctx.strokeStyle = isSite ? "#ff4655" : "#00d2ff";
-    ctx.lineWidth = 2.5;
+    // Tinted zone background
+    ctx.fillStyle = bgCol;
+    ctx.fillRect(rx, ry, rw, rh);
+
+    // Subtle dashed perimeter
+    ctx.strokeStyle = isSite ? "rgba(255, 70, 85, 0.2)" : "rgba(0, 210, 255, 0.15)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.strokeRect(rx, ry, rw, rh);
+    ctx.setLineDash([]);
+
+    // Glowing corner brackets
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2;
     // Top-left
     ctx.beginPath(); ctx.moveTo(rx, ry + cLen); ctx.lineTo(rx, ry); ctx.lineTo(rx + cLen, ry); ctx.stroke();
     // Top-right
@@ -206,90 +271,26 @@ function drawMapFloorplan(ctx, mapName, W, H) {
     // Bottom-right
     ctx.beginPath(); ctx.moveTo(rx + rw - cLen, ry + rh); ctx.lineTo(rx + rw, ry + rh); ctx.lineTo(rx + rw, ry + rh - cLen); ctx.stroke();
 
-    // Site Tag Badge
-    ctx.fillStyle = isSite ? "#ff4655" : "#00d2ff";
-    ctx.font = "bold 13px 'Rajdhani', sans-serif";
-    ctx.fillText(label, rx + 10, ry + 20);
+    // Zone Badge
+    ctx.fillStyle = col;
+    ctx.font = "bold 11px 'Rajdhani', sans-serif";
+    ctx.fillText(label, rx + 8, ry + 16);
   };
 
-  const drawCallout = (text, x, y) => {
-    ctx.fillStyle = "#64748b";
-    ctx.font = "bold 10px 'JetBrains Mono', monospace";
-    ctx.fillText(text, x * W, y * H);
-  };
+  // Draw calibrated tournament zones
+  drawZoneBracket(0.08, 0.10, 0.36, 0.34, "SITE // A", true);
+  drawZoneBracket(0.56, 0.10, 0.36, 0.34, "SITE // B", true);
 
-  if (map === "split") {
-    // A Site & A Main corridor
-    drawCorridor([[0.62, 0.15], [0.88, 0.15], [0.88, 0.42], [0.72, 0.42], [0.62, 0.30]]);
-    // B Site & B Garage corridor
-    drawCorridor([[0.12, 0.16], [0.38, 0.16], [0.38, 0.45], [0.24, 0.45], [0.12, 0.32]]);
-    // Mid Vents, Ropes, Mail & Sewer
-    drawCorridor([[0.40, 0.28], [0.60, 0.28], [0.60, 0.65], [0.40, 0.65]]);
-    // Attacker Spawn path
-    drawCorridor([[0.30, 0.72], [0.70, 0.72], [0.65, 0.94], [0.35, 0.94]]);
-    // Defender Spawn path
-    drawCorridor([[0.38, 0.04], [0.62, 0.04], [0.62, 0.18], [0.38, 0.18]]);
-
-    // Site Boxes
-    drawSiteBox(0.66, 0.18, 0.18, 0.18, "SITE // A");
-    drawSiteBox(0.16, 0.20, 0.18, 0.18, "SITE // B");
-    drawSiteBox(0.42, 0.80, 0.16, 0.10, "ATK SPAWN", false);
-    drawSiteBox(0.42, 0.06, 0.16, 0.08, "DEF SPAWN", false);
-
-    // Callout labels
-    drawCallout("A TOWER [HEAVEN]", 0.68, 0.14);
-    drawCallout("A MAIN", 0.76, 0.46);
-    drawCallout("A RAMPS", 0.64, 0.40);
-    drawCallout("B TOWER [HEAVEN]", 0.20, 0.14);
-    drawCallout("B GARAGE", 0.15, 0.48);
-    drawCallout("MID VENTS", 0.43, 0.35);
-    drawCallout("MID MAIL", 0.43, 0.50);
-    drawCallout("SEWER", 0.52, 0.68);
-  } else if (map === "ascent") {
-    // A Site & Garden
-    drawCorridor([[0.62, 0.12], [0.88, 0.12], [0.88, 0.40], [0.62, 0.40]]);
-    // B Site & Market
-    drawCorridor([[0.12, 0.15], [0.38, 0.15], [0.38, 0.44], [0.12, 0.44]]);
-    // Mid Courtyard
-    drawCorridor([[0.38, 0.30], [0.62, 0.30], [0.62, 0.65], [0.38, 0.65]]);
-    // Spawns
-    drawCorridor([[0.32, 0.74], [0.68, 0.74], [0.60, 0.94], [0.40, 0.94]]);
-    drawCorridor([[0.40, 0.04], [0.60, 0.04], [0.60, 0.16], [0.40, 0.16]]);
-
-    drawSiteBox(0.66, 0.16, 0.18, 0.18, "SITE // A");
-    drawSiteBox(0.16, 0.18, 0.18, 0.18, "SITE // B");
-    drawSiteBox(0.42, 0.82, 0.16, 0.08, "ATK SPAWN", false);
-    drawSiteBox(0.42, 0.06, 0.16, 0.07, "DEF SPAWN", false);
-
-    drawCallout("A HEAVEN", 0.68, 0.14);
-    drawCallout("A MAIN", 0.78, 0.44);
-    drawCallout("B BOAT HOUSE", 0.14, 0.14);
-    drawCallout("MID COURTYARD", 0.42, 0.48);
-    drawCallout("MARKET", 0.28, 0.32);
-  } else if (map === "bind") {
-    // A Site & Showers
-    drawCorridor([[0.58, 0.14], [0.86, 0.14], [0.86, 0.45], [0.58, 0.45]]);
-    // B Site & Hookah
-    drawCorridor([[0.14, 0.16], [0.42, 0.16], [0.42, 0.48], [0.14, 0.48]]);
-    // Center teleporters
-    drawCorridor([[0.35, 0.42], [0.65, 0.42], [0.65, 0.68], [0.35, 0.68]]);
-    drawSiteBox(0.64, 0.18, 0.18, 0.18, "SITE // A");
-    drawSiteBox(0.18, 0.20, 0.18, 0.18, "SITE // B");
-    drawCallout("U-HALL / LAMPS", 0.62, 0.16);
-    drawCallout("HOOKAH", 0.24, 0.44);
-    drawCallout("B LONG", 0.12, 0.54);
-    drawCallout("A SHORT", 0.58, 0.52);
+  if (isThreeSite) {
+    drawZoneBracket(0.32, 0.58, 0.36, 0.30, "SITE // C", true);
+    drawZoneBracket(0.38, 0.32, 0.24, 0.22, "MID // AREA", false);
   } else {
-    // Generic tactical 3-lane floorplan for Haven / Lotus / other
-    drawCorridor([[0.68, 0.15], [0.90, 0.15], [0.90, 0.45], [0.68, 0.45]]);
-    drawCorridor([[0.40, 0.18], [0.60, 0.18], [0.60, 0.45], [0.40, 0.45]]);
-    drawCorridor([[0.10, 0.15], [0.32, 0.15], [0.32, 0.45], [0.10, 0.45]]);
-    drawCorridor([[0.20, 0.55], [0.80, 0.55], [0.80, 0.75], [0.20, 0.75]]);
-    drawSiteBox(0.72, 0.18, 0.15, 0.18, "SITE // A");
-    drawSiteBox(0.42, 0.20, 0.15, 0.18, "SITE // B");
-    drawSiteBox(0.14, 0.18, 0.15, 0.18, "SITE // C");
-    drawCallout("MID CONNECTOR", 0.42, 0.60);
+    drawZoneBracket(0.36, 0.36, 0.28, 0.26, "MID // CHOKE", false);
   }
+
+  // Spawns
+  drawZoneBracket(0.36, 0.84, 0.28, 0.12, "ATK // BASE", false);
+  drawZoneBracket(0.36, 0.02, 0.28, 0.08, "DEF // BASE", false);
 
   ctx.restore();
 }
@@ -336,7 +337,7 @@ function drawMinimap(atlas, lineups, bounds) {
   const map = atlas.map_selected || "split";
 
   // 1. Draw Architectural Floorplan
-  drawMapFloorplan(ctx, map, W, H);
+  drawMapFloorplan(ctx, map, W, H, bounds);
 
   // 2. Draw Radar Sweep Beam
   drawRadarSweep(ctx, W, H);
@@ -363,7 +364,39 @@ function drawMinimap(atlas, lineups, bounds) {
   // 4. Ballistic Trajectory Arcs & Landing Blips
   currentMinimapPoints = [];
   const points = atlas.points || [];
-  if (points.length) {
+  if (!points.length) {
+    const cx = W / 2, cy = H / 2;
+    ctx.save();
+    ctx.fillStyle = "rgba(7, 12, 20, 0.88)";
+    ctx.strokeStyle = "rgba(0, 210, 255, 0.4)";
+    ctx.lineWidth = 1.5;
+    const bw = 380, bh = 95;
+    const bx = (W - bw) / 2, by = (H - bh) / 2;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeRect(bx, by, bw, bh);
+
+    // Glowing corner accents
+    const cL = 8;
+    ctx.strokeStyle = "#00d2ff";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(bx, by + cL); ctx.lineTo(bx, by); ctx.lineTo(bx + cL, by); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx + bw - cL, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + cL); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx, by + bh - cL); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + cL, by + bh); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx + bw - cL, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - cL); ctx.stroke();
+
+    ctx.fillStyle = "#ff4655";
+    ctx.font = "bold 13px 'Rajdhani', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("RADAR TELEMETRY // 0 CASTS MATCH ACTIVE FILTERS", cx, by + 30);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    const curP = $("f-player") ? $("f-player").value.toUpperCase() : "ALL";
+    const curA = $("f-agent") ? $("f-agent").value.toUpperCase() : "ALL";
+    ctx.fillText(`FILTER: ${map.toUpperCase()} · ${$("f-side").value.toUpperCase()} · ${curP} · ${curA}`, cx, by + 54);
+    ctx.fillStyle = "#00d2ff";
+    ctx.fillText("Select 'ALL ROSTER' or 'ALL AGENTS' to expand radar data", cx, by + 74);
+    ctx.restore();
+  } else {
     for (const p of points) {
       if (layers[p.class] === false) continue;
       const endX = p.u * W, endY = p.v * H;
@@ -802,19 +835,15 @@ async function loadAtlas() {
     const [atlas, lineups] = await Promise.all([
       get(atlasQuery()), fetchLineups().catch(() => []),
     ]);
-    if (!atlas.abilities?.length && !(atlas.density || []).length && !(atlas.points || []).length) {
-      setState($("evidence"), "empty", "NO CASTS MATCH SELECTED TACTICAL FILTERS");
-      return;
-    }
     rebuildAbilityOptions(atlas);
     const bounds = atlas.bounds_m ||
-      (DEMO ? DEMO_DATA.bounds_m[atlas.map_selected] : null) || { w: 110, h: 120 };
+      (DEMO_DATA && DEMO_DATA.bounds_m ? DEMO_DATA.bounds_m[atlas.map_selected] : null) || { w: 110, h: 120 };
     drawMinimap(atlas, lineups, bounds);
     renderEvidence(atlas);
     renderAtlasTable(atlas);
     $("map-note").textContent =
-      `${atlas.rounds ?? "—"} ROUNDS · ${atlas.map_selected.toUpperCase()} · ${$("f-side").value.toUpperCase()}`;
-    V3.setMap(atlas.map_selected, bounds, atlas, lineups);
+      `${atlas.rounds ?? "—"} ROUNDS · ${(atlas.map_selected || $("f-map").value).toUpperCase()} · ${$("f-side").value.toUpperCase()}`;
+    V3.setMap(atlas.map_selected || $("f-map").value, bounds, atlas, lineups);
     writeHash();
   } catch (err) {
     setState($("evidence"), "error", `FAILED TO LOAD ATLAS: ${err.message}`);
@@ -969,19 +998,93 @@ function setBanner(cov) {
   $("footer-data-note").textContent = "DATA: REAL VCT AMERICAS CORPUS AGGREGATES (GRID TELEMETRY)";
 }
 
+let ROSTER_MAP = { playerToAgents: {}, agentToPlayers: {}, allPlayers: [], allAgents: [] };
+
+function setupRosterFilters(op) {
+  if (!op) return;
+  const p2a = {};
+  const a2p = {};
+
+  if (op.players && op.players.length) {
+    for (const p of op.players) {
+      if (!p.player) continue;
+      p2a[p.player] = p2a[p.player] || new Set();
+      if (p.agent) {
+        const ag = p.agent.toLowerCase();
+        p2a[p.player].add(ag);
+        a2p[ag] = a2p[ag] || new Set();
+        a2p[ag].add(p.player);
+      }
+    }
+  }
+
+  if (op.rotation) {
+    for (const [agent, pls] of Object.entries(op.rotation)) {
+      const a = agent.toLowerCase();
+      a2p[a] = a2p[a] || new Set();
+      for (const pl of pls) {
+        a2p[a].add(pl);
+        p2a[pl] = p2a[pl] || new Set();
+        p2a[pl].add(a);
+      }
+    }
+  }
+
+  ROSTER_MAP.playerToAgents = Object.fromEntries(
+    Object.entries(p2a).map(([k, v]) => [k, Array.from(v).sort()])
+  );
+  ROSTER_MAP.agentToPlayers = Object.fromEntries(
+    Object.entries(a2p).map(([k, v]) => [k, Array.from(v).sort()])
+  );
+  ROSTER_MAP.allPlayers = Object.keys(ROSTER_MAP.playerToAgents).sort();
+  ROSTER_MAP.allAgents = Object.keys(ROSTER_MAP.agentToPlayers).sort();
+
+  syncFilterOptions();
+}
+
+function syncFilterOptions() {
+  const pSel = $("f-player");
+  const aSel = $("f-agent");
+  if (!pSel || !aSel) return;
+
+  const curPlayer = pSel.value || "all";
+  const curAgent = aSel.value || "all";
+
+  let availPlayers = ROSTER_MAP.allPlayers;
+  if (curAgent && curAgent !== "all" && ROSTER_MAP.agentToPlayers[curAgent]) {
+    availPlayers = ROSTER_MAP.agentToPlayers[curAgent];
+  }
+
+  let availAgents = ROSTER_MAP.allAgents;
+  if (curPlayer && curPlayer !== "all" && ROSTER_MAP.playerToAgents[curPlayer]) {
+    availAgents = ROSTER_MAP.playerToAgents[curPlayer];
+  }
+
+  pSel.innerHTML = `<option value="all">ALL ROSTER (${ROSTER_MAP.allPlayers.length})</option>` +
+    availPlayers.map(p => `<option value="${p}">${p.toUpperCase()}</option>`).join("");
+  if (availPlayers.includes(curPlayer)) pSel.value = curPlayer;
+  else pSel.value = "all";
+
+  aSel.innerHTML = `<option value="all">ALL AGENTS (${ROSTER_MAP.allAgents.length})</option>` +
+    availAgents.map(a => `<option value="${a}">${a.toUpperCase()}</option>`).join("");
+  if (availAgents.includes(curAgent)) aSel.value = curAgent;
+  else aSel.value = "all";
+}
+
 /* ---------------- Boot Initialization ---------------- */
 async function boot() {
+  // Pre-load demo-data.json for instant offline fallback
+  try {
+    const res = await fetch("demo-data.json");
+    if (res.ok) {
+      DEMO_DATA = await res.json();
+      if (!COV) COV = DEMO_DATA.coverage;
+    }
+  } catch (_) {}
+
   if (DEMO) {
     $("btn-brief").disabled = true;
-    try {
-      const res = await fetch("demo-data.json");
-      DEMO_DATA = await res.json();
-      COV = DEMO_DATA.coverage;
-    } catch (err) {
-      setState($("evidence"), "error", `Demo data failed to load: ${err.message}`);
-      return;
-    }
-    setBanner(COV);
+    if (COV) setBanner(COV);
   }
 
   try {
@@ -989,7 +1092,7 @@ async function boot() {
     const maps = META.maps || ["split", "ascent", "bind", "haven"];
     $("f-map").innerHTML = maps.map(m => `<option value="${m}">${m.toUpperCase()}</option>`).join("");
 
-    if (!DEMO && META.source === "real-aggregates") {
+    if (META.source === "real-aggregates" || META.SYNTHETIC === false) {
       REAL_API = true;
       COV = META.coverage || COV;
       setBanner(COV);
@@ -997,17 +1100,8 @@ async function boot() {
 
     try {
       const op = DEMO ? DEMO_DATA.operator : await get("/api/operator");
-      if (op && op.players && op.players.length) {
-        const players = Array.from(new Set(op.players.map(p => p.player))).sort();
-        const agents = Array.from(new Set(op.players.map(p => p.agent))).sort();
-        if ($("f-player")) {
-          $("f-player").innerHTML = `<option value="all">ALL ROSTER</option>` +
-            players.map(p => `<option value="${p}">${p.toUpperCase()}</option>`).join("");
-        }
-        if ($("f-agent")) {
-          $("f-agent").innerHTML = `<option value="all">ALL AGENTS</option>` +
-            agents.map(a => `<option value="${a}">${a.toUpperCase()}</option>`).join("");
-        }
+      if (op) {
+        setupRosterFilters(op);
       }
     } catch (_) {}
 
@@ -1022,7 +1116,7 @@ async function boot() {
       if (preferred) $("f-map").value = preferred;
     }
   } catch (err) {
-    setState($("evidence"), "error", `API unreachable: ${err.message}`);
+    setState($("evidence"), "error", `Telemetry feed initializing: ${err.message}`);
   }
 
   renderToggles();
@@ -1034,11 +1128,25 @@ async function boot() {
   $("f-map").addEventListener("change", () => { $("f-ability").value = ""; loadAtlas(); loadOperator(); loadCues(); });
   $("f-side").addEventListener("change", () => { loadAtlas(); loadCues(); });
   $("f-ability").addEventListener("change", () => { loadAtlas(); loadCues(); });
-  if ($("f-player")) $("f-player").addEventListener("change", () => { loadAtlas(); loadOperator(); loadCues(); });
-  if ($("f-agent")) $("f-agent").addEventListener("change", () => { loadAtlas(); loadOperator(); loadCues(); });
+  if ($("f-player")) {
+    $("f-player").addEventListener("change", () => {
+      syncFilterOptions();
+      loadAtlas();
+      loadOperator();
+      loadCues();
+    });
+  }
+  if ($("f-agent")) {
+    $("f-agent").addEventListener("change", () => {
+      syncFilterOptions();
+      loadAtlas();
+      loadOperator();
+      loadCues();
+    });
+  }
   $("btn-refresh").addEventListener("click", loadAll);
   $("btn-brief").addEventListener("click", () => window.open(
-    `${API}/api/brief.pdf?map=${encodeURIComponent($("f-map").value || "split")}`, "_blank"));
+    `${API}/api/brief.pdf?map=${encodeURIComponent($("f-map").value || "split")}&data=real`, "_blank"));
   $("btn-tour").addEventListener("click", () => showOnboarding(true));
   $("btn-modal-close").addEventListener("click", hideOnboarding);
   $("btn-start").addEventListener("click", hideOnboarding);

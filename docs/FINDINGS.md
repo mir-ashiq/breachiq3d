@@ -82,3 +82,4 @@ A repeated cast cluster = the same ability cast from within 200 cm with aim with
 - Economy classes (pistol/eco/force/full) are ESTIMATES from team loadout-value snapshots with documented thresholds; pistol = rounds 1 and 13 by rule.
 - Zones/lineup positions are cast positions in GRID's cm frame; map bounds calibrated from each game's `map.bounds`.
 - Landing locations are never claimed: GRID provides none, and every landing view in the app is a labeled ESTIMATE.
+- The demo snapshot carries per-cast trajectory points (caster position, aim, landing estimate; sampled to 160 per map-side with the true count in `points_total`) for the minimap arcs and hover tooltips.
