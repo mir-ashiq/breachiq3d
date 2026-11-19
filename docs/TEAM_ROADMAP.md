@@ -43,8 +43,8 @@ judges inspect commit histories and PR flows).
 - Sann: reconcile `feat/tactical-minimap-dashboard` with main's `web/`
   (keep the Cloud9 dark aesthetic, tooltip inspection, minimap
   refinements; port anything main lacks) as reviewable slices.
-- **Gate G0 (Nov 22) [PASSED]:** PR #1 through PR #10 merged with balanced
-  commits on main (22 Sann commits, 14 Ashiq commits); both run the full
+- **Gate G0 (Nov 22) [PASSED]:** PR #1 through PR #11 merged with balanced
+  commits on main (24 Sann commits, 14 Ashiq commits); both run the full
   stack locally (`BREACHIQ_DATA=real` / static server); attestations filled;
   licenses requested; team registered.
 
