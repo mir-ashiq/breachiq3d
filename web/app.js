@@ -369,10 +369,10 @@ function drawMinimap(atlas, lineups, bounds) {
   if (!points.length) {
     const cx = W / 2, cy = H / 2;
     ctx.save();
-    ctx.fillStyle = "rgba(7, 12, 20, 0.88)";
+    ctx.fillStyle = "rgba(7, 12, 20, 0.92)";
     ctx.strokeStyle = "rgba(0, 210, 255, 0.4)";
     ctx.lineWidth = 1.5;
-    const bw = 380, bh = 95;
+    const bw = 420, bh = 105;
     const bx = (W - bw) / 2, by = (H - bh) / 2;
     ctx.fillRect(bx, by, bw, bh);
     ctx.strokeRect(bx, by, bw, bh);
@@ -389,14 +389,24 @@ function drawMinimap(atlas, lineups, bounds) {
     ctx.fillStyle = "#ff4655";
     ctx.font = "bold 13px 'Rajdhani', sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("RADAR TELEMETRY // 0 CASTS MATCH ACTIVE FILTERS", cx, by + 30);
+    ctx.fillText("RADAR TELEMETRY // 0 CASTS MATCH ACTIVE FILTERS", cx, by + 28);
     ctx.fillStyle = "#94a3b8";
     ctx.font = "11px 'JetBrains Mono', monospace";
     const curP = $("f-player") ? $("f-player").value.toUpperCase() : "ALL";
     const curA = $("f-agent") ? $("f-agent").value.toUpperCase() : "ALL";
-    ctx.fillText(`FILTER: ${map.toUpperCase()} · ${$("f-side").value.toUpperCase()} · ${curP} · ${curA}`, cx, by + 54);
+    ctx.fillText(`FILTER: ${map.toUpperCase()} · ${$("f-side").value.toUpperCase()} · ${curP} · ${curA}`, cx, by + 50);
+
+    const mData = MAP_ROSTER[map.toLowerCase()];
+    const totalM = mData ? mData.total : 160;
+    ctx.fillStyle = "rgba(0, 210, 255, 0.15)";
+    ctx.fillRect(cx - 160, by + 65, 320, 26);
+    ctx.strokeStyle = "#00d2ff";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cx - 160, by + 65, 320, 26);
+
     ctx.fillStyle = "#00d2ff";
-    ctx.fillText("Select 'ALL ROSTER' or 'ALL AGENTS' to expand radar data", cx, by + 74);
+    ctx.font = "bold 11px 'Rajdhani', sans-serif";
+    ctx.fillText(`⚡ CLICK TO RESET // SHOW ALL ${totalM} ${map.toUpperCase()} CASTS`, cx, by + 82);
     ctx.restore();
   } else {
     for (const p of points) {
@@ -679,6 +689,19 @@ function setupMinimapTooltips() {
   const canvas = $("minimap");
   const tip = $("canvas-tooltip");
   if (!canvas || !tip) return;
+
+  canvas.addEventListener("click", (e) => {
+    // If radar is showing 0 points, clicking the center box resets filters to all
+    if (lastAtlasData && (!lastAtlasData.points || lastAtlasData.points.length === 0)) {
+      if ($("f-agent")) $("f-agent").value = "all";
+      if ($("f-player")) $("f-player").value = "all";
+      if ($("f-ability")) $("f-ability").value = "";
+      syncFilterOptions();
+      loadAtlas();
+      loadOperator();
+      loadCues();
+    }
+  });
 
   canvas.addEventListener("mousemove", (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -1120,6 +1143,25 @@ function renderAtlasTable(atlas) {
 
 async function loadAtlas() {
   try {
+    const curMap = ($("f-map").value || "split").toLowerCase();
+    const curAgent = $("f-agent") ? $("f-agent").value : "all";
+    const curPlayer = $("f-player") ? $("f-player").value : "all";
+
+    // Auto-recovery: if current agent or player is not fielded on this map, auto-reset to "all"
+    const mapData = MAP_ROSTER[curMap];
+    if (mapData) {
+      if (curAgent && curAgent !== "all" && !mapData.agents[curAgent]) {
+        console.warn(`[BreachIQ] ${curAgent} was never fielded on ${curMap}. Auto-resetting to all agents.`);
+        $("f-agent").value = "all";
+        syncFilterOptions();
+      }
+      if (curPlayer && curPlayer !== "all" && !mapData.players[curPlayer]) {
+        console.warn(`[BreachIQ] ${curPlayer} was never fielded on ${curMap}. Auto-resetting to all players.`);
+        $("f-player").value = "all";
+        syncFilterOptions();
+      }
+    }
+
     const [atlas, lineups] = await Promise.all([
       get(atlasQuery()), fetchLineups().catch(() => []),
     ]);
@@ -1295,6 +1337,22 @@ function setBanner(cov) {
   $("footer-data-note").textContent = "DATA: REAL VCT AMERICAS CORPUS AGGREGATES (GRID TELEMETRY)";
 }
 
+// Map-Specific Active Rosters & Cast Densities (from 160GB real Cloud9 corpus)
+const MAP_ROSTER = {
+  abyss: { total: 160, agents: { breach: 36, deadlock: 34, omen: 33, raze: 13, tejo: 13, harbor: 13, sova: 10, yoru: 4, waylay: 4 }, players: { mitch: 36, neT: 34, v1c: 24, OXY: 13, Xeppaa: 13, gia: 13, leelee: 10, sarie: 9, yunie: 4, marceline: 4 } },
+  ascent: { total: 160, agents: { omen: 40, yoru: 32, sova: 23, vyse: 16, deadlock: 15, harbor: 12, breach: 7, viper: 6, tejo: 6, waylay: 3 }, players: { v1c: 29, mitch: 23, Xeppaa: 22, OXY: 22, neT: 21, gia: 12, sarie: 11, yunie: 10, leelee: 7, marceline: 3 } },
+  bind: { total: 160, agents: { viper: 33, skye: 30, vyse: 27, omen: 21, killjoy: 19, jett: 12, brimstone: 11, raze: 7 }, players: { Xeppaa: 46, neT: 33, v1c: 32, mitch: 30, OXY: 19 } },
+  corrode: { total: 160, agents: { vyse: 44, omen: 41, skye: 29, raze: 20, viper: 20, neon: 6 }, players: { Xeppaa: 44, v1c: 41, mitch: 29, OXY: 26, neT: 20 } },
+  fracture: { total: 160, agents: { tejo: 29, breach: 26, clove: 22, brimstone: 22, cypher: 17, raze: 13, killjoy: 10, deadlock: 9, omen: 6, neon: 6 }, players: { Xeppaa: 39, mitch: 38, neT: 36, v1c: 28, OXY: 19 } },
+  haven: { total: 160, agents: { omen: 24, viper: 20, fade: 20, cypher: 16, vyse: 14, jett: 11, skye: 11, neon: 10, yoru: 7, astra: 6, killjoy: 6, sova: 5, raze: 4, harbor: 3, phoenix: 3 }, players: { mitch: 26, v1c: 26, OXY: 19, neT: 18, Xeppaa: 17, sarie: 16, yunie: 13, leelee: 12, gia: 7, marceline: 6 } },
+  icebox: { total: 160, agents: { skye: 21, viper: 19, killjoy: 18, tejo: 15, omen: 14, jett: 12, breach: 12, vyse: 12, sova: 9, cypher: 9, brimstone: 7, harbor: 4, neon: 4, raze: 4 }, players: { Xeppaa: 50, mitch: 37, neT: 27, v1c: 26, OXY: 20 } },
+  lotus: { total: 160, agents: { omen: 33, vyse: 26, neon: 15, skye: 15, fade: 12, viper: 9, breach: 7, raze: 6, cypher: 6, jett: 5, tejo: 4, brimstone: 4, sova: 4, harbor: 4, deadlock: 3, yoru: 3, clove: 1, killjoy: 1, astra: 1, waylay: 1 }, players: { v1c: 28, mitch: 27, Xeppaa: 23, OXY: 17, neT: 14, gia: 13, leelee: 12, marceline: 11, yunie: 9, sarie: 6 } },
+  pearl: { total: 160, agents: { omen: 37, viper: 17, tejo: 14, cypher: 14, deadlock: 11, astra: 10, neon: 10, breach: 6, raze: 6, sova: 6, yoru: 5, harbor: 5, fade: 5, killjoy: 4, vyse: 4, jett: 3, phoenix: 3 }, players: { v1c: 45, neT: 26, Xeppaa: 19, mitch: 17, OXY: 15, gia: 15, marceline: 8, sarie: 7, leelee: 5, yunie: 3 } },
+  split: { total: 160, agents: { omen: 43, viper: 27, fade: 26, vyse: 18, neon: 18, yoru: 14, tejo: 7, breach: 7 }, players: { gia: 30, leelee: 26, yunie: 18, marceline: 18, sarie: 17, OXY: 14, v1c: 13, neT: 10, Xeppaa: 7, mitch: 7 } },
+  summit: { total: 160, agents: { omen: 38, fade: 35, neon: 33, vyse: 30, viper: 24 }, players: { gia: 38, leelee: 35, marceline: 33, yunie: 30, sarie: 24 } },
+  sunset: { total: 160, agents: { omen: 40, neon: 32, fade: 32, yoru: 29, cypher: 27 }, players: { gia: 40, marceline: 32, leelee: 32, yunie: 29, sarie: 27 } }
+};
+
 let ROSTER_MAP = { playerToAgents: {}, agentToPlayers: {}, allPlayers: [], allAgents: [] };
 
 function setupRosterFilters(op) {
@@ -1342,30 +1400,52 @@ function setupRosterFilters(op) {
 function syncFilterOptions() {
   const pSel = $("f-player");
   const aSel = $("f-agent");
+  const mSel = $("f-map");
   if (!pSel || !aSel) return;
 
-  const curPlayer = pSel.value || "all";
-  const curAgent = aSel.value || "all";
+  const curMap = (mSel ? mSel.value : "split").toLowerCase();
+  const mapData = MAP_ROSTER[curMap] || null;
 
-  let availPlayers = ROSTER_MAP.allPlayers;
-  if (curAgent && curAgent !== "all" && ROSTER_MAP.agentToPlayers[curAgent]) {
-    availPlayers = ROSTER_MAP.agentToPlayers[curAgent];
+  let curPlayer = pSel.value || "all";
+  let curAgent = aSel.value || "all";
+
+  // Validate agent on this map: if agent has 0 casts on this map, auto-reset to "all"
+  if (curAgent && curAgent !== "all" && mapData && !mapData.agents[curAgent]) {
+    curAgent = "all";
   }
 
-  let availAgents = ROSTER_MAP.allAgents;
+  // Validate player on this map: if player has 0 casts on this map, auto-reset to "all"
+  if (curPlayer && curPlayer !== "all" && mapData && !mapData.players[curPlayer]) {
+    curPlayer = "all";
+  }
+
+  let availAgents = mapData ? Object.keys(mapData.agents) : ROSTER_MAP.allAgents;
+  let availPlayers = mapData ? Object.keys(mapData.players) : ROSTER_MAP.allPlayers;
+
+  // Cross-link with ROSTER_MAP if selected
   if (curPlayer && curPlayer !== "all" && ROSTER_MAP.playerToAgents[curPlayer]) {
-    availAgents = ROSTER_MAP.playerToAgents[curPlayer];
+    const pAgents = ROSTER_MAP.playerToAgents[curPlayer];
+    availAgents = availAgents.filter(a => pAgents.includes(a));
+  }
+  if (curAgent && curAgent !== "all" && ROSTER_MAP.agentToPlayers[curAgent]) {
+    const aPlayers = ROSTER_MAP.agentToPlayers[curAgent];
+    availPlayers = availPlayers.filter(p => aPlayers.includes(p));
   }
 
-  pSel.innerHTML = `<option value="all">ALL ROSTER (${ROSTER_MAP.allPlayers.length})</option>` +
-    availPlayers.map(p => `<option value="${p}">${p.toUpperCase()}</option>`).join("");
-  if (availPlayers.includes(curPlayer)) pSel.value = curPlayer;
-  else pSel.value = "all";
+  const totalCasts = mapData ? mapData.total : 160;
+  aSel.innerHTML = `<option value="all">ALL AGENTS (${totalCasts} CASTS)</option>` +
+    availAgents.map(a => {
+      const c = mapData && mapData.agents[a] ? ` (${mapData.agents[a]})` : "";
+      return `<option value="${a}">${a.toUpperCase()}${c}</option>`;
+    }).join("");
+  aSel.value = availAgents.includes(curAgent) ? curAgent : "all";
 
-  aSel.innerHTML = `<option value="all">ALL AGENTS (${ROSTER_MAP.allAgents.length})</option>` +
-    availAgents.map(a => `<option value="${a}">${a.toUpperCase()}</option>`).join("");
-  if (availAgents.includes(curAgent)) aSel.value = curAgent;
-  else aSel.value = "all";
+  pSel.innerHTML = `<option value="all">ALL ROSTER (${availPlayers.length})</option>` +
+    availPlayers.map(p => {
+      const c = mapData && mapData.players[p] ? ` (${mapData.players[p]})` : "";
+      return `<option value="${p}">${p.toUpperCase()}${c}</option>`;
+    }).join("");
+  pSel.value = availPlayers.includes(curPlayer) ? curPlayer : "all";
 }
 
 /* ---------------- Boot Initialization ---------------- */
@@ -1406,12 +1486,14 @@ async function boot() {
     if (h.map && maps.includes(h.map)) $("f-map").value = h.map;
     if (h.side) $("f-side").value = h.side;
     if (h.ability) $("f-ability").value = h.ability;
-    if (h.player && $("f-player")) $("f-player").value = h.player;
-    if (h.agent && $("f-agent")) $("f-agent").value = h.agent;
     if (!h.map) {
       const preferred = maps.includes("split") ? "split" : maps[0];
       if (preferred) $("f-map").value = preferred;
     }
+    syncFilterOptions();
+    if (h.player && $("f-player")) $("f-player").value = h.player;
+    if (h.agent && $("f-agent")) $("f-agent").value = h.agent;
+    syncFilterOptions();
   } catch (err) {
     setState($("evidence"), "error", `Telemetry feed initializing: ${err.message}`);
   }
@@ -1422,7 +1504,13 @@ async function boot() {
   requestAnimationFrame(v3Loop);
   requestAnimationFrame(radarLoop);
 
-  $("f-map").addEventListener("change", () => { $("f-ability").value = ""; loadAtlas(); loadOperator(); loadCues(); });
+  $("f-map").addEventListener("change", () => {
+    $("f-ability").value = "";
+    syncFilterOptions();
+    loadAtlas();
+    loadOperator();
+    loadCues();
+  });
   $("f-side").addEventListener("change", () => { loadAtlas(); loadCues(); });
   $("f-ability").addEventListener("change", () => { loadAtlas(); loadCues(); });
   if ($("f-player")) {
