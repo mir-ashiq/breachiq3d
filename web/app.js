@@ -29,8 +29,18 @@ const CLASS_COLORS = {
   other: "#94a3b8"      // Miscellaneous utility
 };
 
-const layers = { smoke: true, recon: true, placeable: true, stall: true, flash: true, density: false };
+const layers = { smoke: true, recon: true, placeable: true, stall: true, flash: true, density: false, arcs: false };
+const LAYER_LABELS = {
+  smoke: "SMOKE ☁",
+  recon: "RECON ◎",
+  placeable: "TRAP ◈",
+  stall: "STALL ▲",
+  flash: "FLASH ✦",
+  density: "HEATMAP ♨",
+  arcs: "ALL ARCS ➔"
+};
 const HOLD = { player: null };
+let hoveredMinimapPoint = null;
 
 function abilityClass(a) {
   if (!a) return "other";
@@ -156,19 +166,22 @@ function atlasQuery() {
 /* ---------------- Map Blueprint Floorplan Renderer ----------------
    Renders calibrated VALORANT tactical radar geometry: coordinate grid,
    concentric range circles, cardinal directions, and tournament site brackets. */
+/* ---------------- Map Blueprint Floorplan Renderer ----------------
+   Renders calibrated VALORANT architectural floorplans: true corridor pathways,
+   interconnected rooms, bombsite plant zones, and tournament callout anchors. */
 function drawMapFloorplan(ctx, mapName, W, H, bounds) {
   const map = (mapName || "split").toLowerCase();
   const cx = W / 2, cy = H / 2;
 
   // 1. Dark tactical radar base
-  ctx.fillStyle = "#050811";
+  ctx.fillStyle = "#040711";
   ctx.fillRect(0, 0, W, H);
 
   // Subtle radial vignette
-  const radGrad = ctx.createRadialGradient(cx, cy, 40, cx, cy, W * 0.7);
-  radGrad.addColorStop(0, "rgba(0, 210, 255, 0.04)");
-  radGrad.addColorStop(0.7, "rgba(6, 11, 20, 0.4)");
-  radGrad.addColorStop(1, "rgba(2, 4, 8, 0.9)");
+  const radGrad = ctx.createRadialGradient(cx, cy, 30, cx, cy, W * 0.72);
+  radGrad.addColorStop(0, "rgba(0, 210, 255, 0.05)");
+  radGrad.addColorStop(0.7, "rgba(6, 11, 20, 0.5)");
+  radGrad.addColorStop(1, "rgba(1, 3, 6, 0.95)");
   ctx.fillStyle = radGrad;
   ctx.fillRect(0, 0, W, H);
 
@@ -231,7 +244,6 @@ function drawMapFloorplan(ctx, mapName, W, H, bounds) {
   ctx.textAlign = "left";
   ctx.fillText("▶ E", W - 26, cy + 4);
   ctx.fillText("◀ W", 10, cy + 4);
-  ctx.textAlign = "left";
 
   // Center target reticle
   ctx.strokeStyle = "rgba(0, 210, 255, 0.3)";
@@ -239,58 +251,219 @@ function drawMapFloorplan(ctx, mapName, W, H, bounds) {
   ctx.arc(cx, cy, 6, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 5. Tactical Bombsite Brackets & Zones
-  const isThreeSite = (map === "haven" || map === "lotus");
+  // -------------------------------------------------------------------------
+  // 5. AUTHENTIC VALORANT ARCHITECTURAL BLUEPRINT CORRIDORS & BOMBSITES
+  // -------------------------------------------------------------------------
+  const drawCorridor = (x, y, w, h) => {
+    ctx.fillStyle = "rgba(13, 22, 38, 0.85)";
+    ctx.fillRect(x * W, y * H, w * W, h * H);
+    ctx.strokeStyle = "rgba(0, 210, 255, 0.38)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x * W, y * H, w * W, h * H);
+  };
 
-  const drawZoneBracket = (x, y, w, h, label, isSite = true) => {
+  const drawPlantZone = (x, y, w, h, label) => {
     const rx = x * W, ry = y * H, rw = w * W, rh = h * H;
-    const cLen = 10;
-    const col = isSite ? "#ff4655" : "#00d2ff";
-    const bgCol = isSite ? "rgba(255, 70, 85, 0.05)" : "rgba(0, 210, 255, 0.03)";
-
-    // Tinted zone background
-    ctx.fillStyle = bgCol;
+    // Radiant hazard zone
+    ctx.fillStyle = "rgba(255, 70, 85, 0.22)";
     ctx.fillRect(rx, ry, rw, rh);
 
-    // Subtle dashed perimeter
-    ctx.strokeStyle = isSite ? "rgba(255, 70, 85, 0.2)" : "rgba(0, 210, 255, 0.15)";
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 4]);
+    ctx.strokeStyle = "#ff4655";
+    ctx.lineWidth = 1.8;
+    ctx.setLineDash([4, 4]);
     ctx.strokeRect(rx, ry, rw, rh);
     ctx.setLineDash([]);
 
-    // Glowing corner brackets
-    ctx.strokeStyle = col;
-    ctx.lineWidth = 2;
-    // Top-left
+    // Corner site brackets
+    const cLen = 8;
     ctx.beginPath(); ctx.moveTo(rx, ry + cLen); ctx.lineTo(rx, ry); ctx.lineTo(rx + cLen, ry); ctx.stroke();
-    // Top-right
     ctx.beginPath(); ctx.moveTo(rx + rw - cLen, ry); ctx.lineTo(rx + rw, ry); ctx.lineTo(rx + rw, ry + cLen); ctx.stroke();
-    // Bottom-left
     ctx.beginPath(); ctx.moveTo(rx, ry + rh - cLen); ctx.lineTo(rx, ry + rh); ctx.lineTo(rx + cLen, ry + rh); ctx.stroke();
-    // Bottom-right
     ctx.beginPath(); ctx.moveTo(rx + rw - cLen, ry + rh); ctx.lineTo(rx + rw, ry + rh); ctx.lineTo(rx + rw, ry + rh - cLen); ctx.stroke();
 
-    // Zone Badge
-    ctx.fillStyle = col;
-    ctx.font = "bold 11px 'Rajdhani', sans-serif";
-    ctx.fillText(label, rx + 8, ry + 16);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 13px 'Rajdhani', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(label, rx + rw / 2, ry + rh / 2 + 5);
+    ctx.textAlign = "left";
   };
 
-  // Draw calibrated tournament zones
-  drawZoneBracket(0.08, 0.10, 0.36, 0.34, "SITE // A", true);
-  drawZoneBracket(0.56, 0.10, 0.36, 0.34, "SITE // B", true);
+  const drawCallout = (x, y, label, col = "rgba(0, 210, 255, 0.75)") => {
+    ctx.fillStyle = col;
+    ctx.font = "bold 10px 'JetBrains Mono', monospace";
+    ctx.fillText(label, x * W, y * H);
+  };
 
-  if (isThreeSite) {
-    drawZoneBracket(0.32, 0.58, 0.36, 0.30, "SITE // C", true);
-    drawZoneBracket(0.38, 0.32, 0.24, 0.22, "MID // AREA", false);
+  // Map-Specific Architectural Geometry
+  if (map === "bind") {
+    // A-Site Wing (Right)
+    drawCorridor(0.56, 0.20, 0.28, 0.24); // A Site
+    drawCorridor(0.50, 0.44, 0.16, 0.20); // A Short
+    drawCorridor(0.72, 0.42, 0.16, 0.26); // A Showers/Baths
+    drawCorridor(0.74, 0.16, 0.12, 0.12); // A Tower (Heaven)
+    drawCorridor(0.52, 0.26, 0.10, 0.14); // Lamps (U-Hall)
+
+    // B-Site Wing (Left)
+    drawCorridor(0.18, 0.20, 0.26, 0.24); // B Site
+    drawCorridor(0.10, 0.38, 0.14, 0.30); // B Long
+    drawCorridor(0.30, 0.46, 0.16, 0.18); // B Hookah (Window)
+    drawCorridor(0.12, 0.20, 0.12, 0.16); // B Garden / Elbow
+    drawCorridor(0.32, 0.14, 0.12, 0.12); // B Hall
+
+    // Connectors & Spawns
+    drawCorridor(0.44, 0.38, 0.10, 0.08); // Teleporter A -> B Short
+    drawCorridor(0.18, 0.52, 0.08, 0.08); // Teleporter B Long -> A Lobby
+    drawCorridor(0.36, 0.04, 0.28, 0.12); // Defender Spawn
+    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Spawn
+
+    // Bombsites
+    drawPlantZone(0.62, 0.24, 0.16, 0.16, "A SITE");
+    drawPlantZone(0.23, 0.24, 0.16, 0.16, "B SITE");
+
+    // Callout labels
+    drawCallout(0.74, 0.55, "SHOWERS");
+    drawCallout(0.52, 0.54, "A SHORT");
+    drawCallout(0.53, 0.34, "U-HALL");
+    drawCallout(0.32, 0.56, "HOOKAH");
+    drawCallout(0.11, 0.54, "B LONG");
+    drawCallout(0.13, 0.27, "GARDEN");
+    drawCallout(0.44, 0.43, "TP [A➔B]", "#ffd166");
+    drawCallout(0.40, 0.11, "DEF SPAWN", "#94a3b8");
+    drawCallout(0.40, 0.88, "ATK SPAWN", "#94a3b8");
+
+  } else if (map === "lotus") {
+    // 3-Site Architecture
+    drawCorridor(0.66, 0.18, 0.24, 0.26); // A Site
+    drawCorridor(0.70, 0.44, 0.16, 0.24); // A Main / Tree
+    drawCorridor(0.62, 0.26, 0.12, 0.12); // A Hut
+    drawCorridor(0.40, 0.22, 0.20, 0.22); // B Site (Center)
+    drawCorridor(0.42, 0.44, 0.16, 0.20); // B Main
+    drawCorridor(0.14, 0.22, 0.22, 0.26); // C Site (Left)
+    drawCorridor(0.12, 0.48, 0.16, 0.22); // C Main / Mound
+    drawCorridor(0.18, 0.14, 0.12, 0.12); // C Waterfall
+
+    // Rotating Doors & Spawns
+    drawCorridor(0.58, 0.34, 0.08, 0.08); // Rotating Door A-B
+    drawCorridor(0.34, 0.34, 0.08, 0.08); // Rotating Door B-C
+    drawCorridor(0.38, 0.04, 0.24, 0.12); // Defender Base
+    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Base
+
+    // Bombsites
+    drawPlantZone(0.70, 0.22, 0.16, 0.16, "A SITE");
+    drawPlantZone(0.42, 0.25, 0.16, 0.16, "B SITE");
+    drawPlantZone(0.16, 0.26, 0.16, 0.16, "C SITE");
+
+    // Callout labels
+    drawCallout(0.72, 0.56, "A TREE");
+    drawCallout(0.63, 0.32, "A HUT");
+    drawCallout(0.43, 0.54, "B MAIN");
+    drawCallout(0.14, 0.60, "C MOUND");
+    drawCallout(0.16, 0.18, "WATERFALL");
+    drawCallout(0.56, 0.39, "ROT DOOR", "#ffd166");
+    drawCallout(0.40, 0.10, "DEF BASE", "#94a3b8");
+    drawCallout(0.40, 0.88, "ATK BASE", "#94a3b8");
+
+  } else if (map === "haven") {
+    // 3-Site Architecture
+    drawCorridor(0.64, 0.18, 0.24, 0.24); // A Site
+    drawCorridor(0.70, 0.42, 0.16, 0.28); // A Long
+    drawCorridor(0.58, 0.42, 0.12, 0.20); // A Sewer
+    drawCorridor(0.40, 0.24, 0.20, 0.22); // B Site
+    drawCorridor(0.42, 0.46, 0.16, 0.18); // Mid Courtyard / Window
+    drawCorridor(0.14, 0.20, 0.22, 0.26); // C Site
+    drawCorridor(0.10, 0.46, 0.14, 0.24); // C Long
+    drawCorridor(0.24, 0.38, 0.14, 0.18); // C Garage / Connector
+
+    drawCorridor(0.38, 0.04, 0.24, 0.12); // Defender Spawn
+    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Spawn
+
+    drawPlantZone(0.68, 0.22, 0.16, 0.16, "A SITE");
+    drawPlantZone(0.42, 0.26, 0.16, 0.16, "B SITE");
+    drawPlantZone(0.16, 0.24, 0.16, 0.16, "C SITE");
+
+    drawCallout(0.72, 0.56, "A LONG");
+    drawCallout(0.59, 0.52, "A SEWER");
+    drawCallout(0.43, 0.55, "MID COURTYARD");
+    drawCallout(0.11, 0.58, "C LONG");
+    drawCallout(0.25, 0.48, "GARAGE");
+    drawCallout(0.40, 0.10, "DEF SPAWN", "#94a3b8");
+    drawCallout(0.40, 0.88, "ATK SPAWN", "#94a3b8");
+
+  } else if (map === "split") {
+    // Split Architecture
+    drawCorridor(0.58, 0.18, 0.26, 0.26); // A Site
+    drawCorridor(0.66, 0.44, 0.18, 0.26); // A Main
+    drawCorridor(0.54, 0.38, 0.12, 0.18); // A Ramps
+    drawCorridor(0.72, 0.14, 0.12, 0.12); // A Heaven
+    drawCorridor(0.40, 0.36, 0.20, 0.28); // Mid (Bottom & Vents & Mail)
+    drawCorridor(0.16, 0.18, 0.26, 0.26); // B Site
+    drawCorridor(0.12, 0.44, 0.16, 0.26); // B Main
+    drawCorridor(0.14, 0.14, 0.12, 0.12); // B Heaven / Alley
+
+    drawCorridor(0.38, 0.04, 0.24, 0.12); // Defender Spawn
+    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Spawn
+
+    drawPlantZone(0.62, 0.22, 0.16, 0.16, "A SITE");
+    drawPlantZone(0.20, 0.22, 0.16, 0.16, "B SITE");
+
+    drawCallout(0.68, 0.58, "A MAIN");
+    drawCallout(0.54, 0.48, "RAMPS");
+    drawCallout(0.73, 0.20, "A HEAVEN");
+    drawCallout(0.42, 0.52, "MID BOTTOM");
+    drawCallout(0.42, 0.42, "MID VENTS");
+    drawCallout(0.13, 0.58, "B MAIN");
+    drawCallout(0.14, 0.20, "B HEAVEN");
+    drawCallout(0.40, 0.10, "DEF SPAWN", "#94a3b8");
+    drawCallout(0.40, 0.88, "ATK SPAWN", "#94a3b8");
+
+  } else if (map === "ascent") {
+    // Ascent Architecture
+    drawCorridor(0.60, 0.18, 0.26, 0.26); // A Site
+    drawCorridor(0.68, 0.44, 0.16, 0.24); // A Main
+    drawCorridor(0.72, 0.14, 0.12, 0.12); // A Rafters / Heaven
+    drawCorridor(0.54, 0.28, 0.12, 0.14); // A Tree
+    drawCorridor(0.38, 0.32, 0.24, 0.30); // Mid Courtyard & Catwalk
+    drawCorridor(0.16, 0.18, 0.26, 0.26); // B Site
+    drawCorridor(0.12, 0.44, 0.16, 0.24); // B Main
+    drawCorridor(0.26, 0.32, 0.12, 0.14); // B Market
+    drawCorridor(0.12, 0.14, 0.12, 0.12); // Boathouse
+
+    drawCorridor(0.38, 0.04, 0.24, 0.12); // Defender Spawn
+    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Spawn
+
+    drawPlantZone(0.64, 0.22, 0.16, 0.16, "A SITE");
+    drawPlantZone(0.20, 0.22, 0.16, 0.16, "B SITE");
+
+    drawCallout(0.70, 0.56, "A MAIN");
+    drawCallout(0.55, 0.35, "A TREE");
+    drawCallout(0.42, 0.48, "MID COURTYARD");
+    drawCallout(0.40, 0.38, "MID CATWALK");
+    drawCallout(0.13, 0.56, "B MAIN");
+    drawCallout(0.27, 0.38, "B MARKET");
+    drawCallout(0.13, 0.20, "BOATHOUSE");
+    drawCallout(0.40, 0.10, "DEF SPAWN", "#94a3b8");
+    drawCallout(0.40, 0.88, "ATK SPAWN", "#94a3b8");
+
   } else {
-    drawZoneBracket(0.36, 0.36, 0.28, 0.26, "MID // CHOKE", false);
-  }
+    // Standard Tactical Arena Layout (Sunset / Abyss / Icebox / Pearl / Summit / Corrode / Fracture)
+    drawCorridor(0.58, 0.18, 0.28, 0.26); // A Site
+    drawCorridor(0.64, 0.44, 0.18, 0.26); // A Approach
+    drawCorridor(0.38, 0.34, 0.24, 0.28); // Mid Sector
+    drawCorridor(0.14, 0.18, 0.28, 0.26); // B Site
+    drawCorridor(0.16, 0.44, 0.18, 0.26); // B Approach
 
-  // Spawns
-  drawZoneBracket(0.36, 0.84, 0.28, 0.12, "ATK // BASE", false);
-  drawZoneBracket(0.36, 0.02, 0.28, 0.08, "DEF // BASE", false);
+    drawCorridor(0.38, 0.04, 0.24, 0.12); // Defender Spawn
+    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Spawn
+
+    drawPlantZone(0.62, 0.22, 0.18, 0.16, "A SITE");
+    drawPlantZone(0.18, 0.22, 0.18, 0.16, "B SITE");
+
+    drawCallout(0.65, 0.58, "A APPROACH");
+    drawCallout(0.41, 0.48, "MID CHOKE");
+    drawCallout(0.17, 0.58, "B APPROACH");
+    drawCallout(0.40, 0.10, "DEF SPAWN", "#94a3b8");
+    drawCallout(0.40, 0.88, "ATK SPAWN", "#94a3b8");
+  }
 
   ctx.restore();
 }
@@ -417,24 +590,30 @@ function drawMinimap(atlas, lineups, bounds) {
       const startY = hasOrigin ? p.v0 * H : endY;
       const col = CLASS_COLORS[p.class] || CLASS_COLORS.other;
 
-      // Draw quadratic ballistic trajectory flight curve
-      if (hasOrigin && (Math.abs(startX - endX) > 2 || Math.abs(startY - endY) > 2)) {
+      // Only draw full curved trajectory line if:
+      // 1) User explicitly toggled 'TRAJECTORIES ➔' layer, OR
+      // 2) This specific blip is hovered by user's mouse (focused inspection), OR
+      // 3) It is an exploit repeated lineup
+      const isHovered = hoveredMinimapPoint && (hoveredMinimapPoint === p || (hoveredMinimapPoint.u === p.u && hoveredMinimapPoint.v === p.v));
+      const shouldDrawArc = layers.arcs || isHovered;
+
+      if (hasOrigin && shouldDrawArc && (Math.abs(startX - endX) > 2 || Math.abs(startY - endY) > 2)) {
         ctx.beginPath();
         ctx.moveTo(startX, startY);
         const midX = (startX + endX) / 2;
         const midY = (startY + endY) / 2;
         const pitchArc = (p.pitch || 25) * 1.0;
         ctx.quadraticCurveTo(midX, midY - Math.abs(pitchArc), endX, endY);
-        ctx.strokeStyle = col;
-        ctx.lineWidth = 1.6;
-        ctx.globalAlpha = 0.65;
+        ctx.strokeStyle = isHovered ? "#ffffff" : col;
+        ctx.lineWidth = isHovered ? 2.5 : 1.5;
+        ctx.globalAlpha = isHovered ? 1.0 : 0.65;
         ctx.stroke();
 
         // Origin caster dot
         ctx.beginPath();
-        ctx.arc(startX, startY, 3, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffffff";
-        ctx.globalAlpha = 0.9;
+        ctx.arc(startX, startY, isHovered ? 4.5 : 3, 0, Math.PI * 2);
+        ctx.fillStyle = isHovered ? "#00d2ff" : "#ffffff";
+        ctx.globalAlpha = 0.95;
         ctx.fill();
 
         // Directional azimuth aim tick
@@ -442,9 +621,9 @@ function drawMinimap(atlas, lineups, bounds) {
           const rad = (p.azimuth * Math.PI) / 180;
           ctx.beginPath();
           ctx.moveTo(startX, startY);
-          ctx.lineTo(startX + Math.cos(rad) * 12, startY - Math.sin(rad) * 12);
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
-          ctx.lineWidth = 1.2;
+          ctx.lineTo(startX + Math.cos(rad) * (isHovered ? 16 : 10), startY - Math.sin(rad) * (isHovered ? 16 : 10));
+          ctx.strokeStyle = isHovered ? "#00d2ff" : "rgba(255, 255, 255, 0.8)";
+          ctx.lineWidth = isHovered ? 2 : 1.2;
           ctx.stroke();
         }
       }
@@ -577,7 +756,7 @@ function drawMinimap(atlas, lineups, bounds) {
       ctx.restore();
 
       currentMinimapPoints.push({
-        x: endX, y: endY, r: 12,
+        x: endX, y: endY, r: 12, rawPoint: p,
         label: `${p.ability.toUpperCase()} [${(p.class || "utility").toUpperCase()}]`,
         sub: `Caster: ${p.player || "Unknown"} (${(p.agent || "Agent").toUpperCase()}) · Round: #${p.round ?? "N/A"}`,
         extra: p.azimuth != null ? `Aim Azimuth: ${p.azimuth}° · Pitch: ${p.pitch}°` : null
@@ -715,6 +894,8 @@ function setupMinimapTooltips() {
       return Math.sqrt(dx * dx + dy * dy) <= p.r + 4;
     });
 
+    hoveredMinimapPoint = hit ? (hit.rawPoint || null) : null;
+
     if (hit) {
       tip.innerHTML = `
         <b>${hit.label}</b>
@@ -730,6 +911,7 @@ function setupMinimapTooltips() {
   });
 
   canvas.addEventListener("mouseleave", () => {
+    hoveredMinimapPoint = null;
     tip.classList.add("hidden");
   });
 }
@@ -746,7 +928,8 @@ function radarLoop() {
 
 /* ---------------- 3D Trajectory Orbit Viewer (Holographic Arena) ---------------- */
 const V3 = {
-  yaw: 0.85, pitch: 0.44, dist: 180, auto: true, highlight: null,
+  // Default: Tactical Top-Down Bird's-Eye View (70° high angle, clean floor projection)
+  yaw: 0.05, pitch: 1.22, dist: 175, auto: false, highlight: null,
   lineups: [], arcs: [], bounds: { w: 110, h: 120 }, map: "",
   visible: true, dragging: false,
 
@@ -939,26 +1122,44 @@ function draw3D() {
   renderItems.sort((a, b) => b.depth - a.depth);
 
   // 5. Draw 3D Ballistic Trajectory Arcs
+  const highestLineup = V3.lineups && V3.lineups.length ? V3.lineups[0] : null;
+
   for (const it of renderItems) {
     if (it.kind === "lineup") {
       // Golden exploit lineup curve
-      ctx.strokeStyle = "#ffd166";
-      ctx.lineWidth = it.hl ? 4 : 2.5;
-      ctx.globalAlpha = 0.95;
+      const isTopLineup = (it.l === highestLineup);
+      const isFocused = it.hl || isTopLineup;
+
+      ctx.strokeStyle = isFocused ? "#ffd166" : "rgba(255, 209, 102, 0.45)";
+      ctx.lineWidth = it.hl ? 4 : (isTopLineup ? 2.8 : 1.8);
+      ctx.globalAlpha = isFocused ? 0.95 : 0.6;
       ctx.beginPath();
       ctx.moveTo(it.pts[0][0], it.pts[0][1]);
       for (let i = 1; i < it.pts.length; i++) ctx.lineTo(it.pts[i][0], it.pts[i][1]);
       ctx.stroke();
 
-      const s = it.pts[0];
-      ctx.fillStyle = "#ffd166";
-      ctx.font = "bold 12px 'Rajdhani', sans-serif";
-      ctx.fillText(`★ ${it.l.repeats} [APEX ${it.l.trajectory.apex_m}m]`, s[0] + 8, s[1] - 6);
+      // De-cluttered floating leader tag: ONLY draw for focused or top lineup
+      if (it.hl || (isTopLineup && it.l.repeats >= 20)) {
+        const s = it.pts[Math.floor(it.pts.length / 2)];
+        ctx.fillStyle = "rgba(4, 7, 17, 0.92)";
+        ctx.strokeStyle = "#ffd166";
+        ctx.lineWidth = 1.2;
+        const badgeText = `★ ${it.l.ability.toUpperCase()} // ${it.l.repeats} ROUNDS [APEX ${it.l.trajectory.apex_m}m]`;
+        ctx.font = "bold 10px 'JetBrains Mono', monospace";
+        const tw = ctx.measureText(badgeText).width;
+        ctx.fillRect(s[0] - tw / 2 - 6, s[1] - 18, tw + 12, 16);
+        ctx.strokeRect(s[0] - tw / 2 - 6, s[1] - 18, tw + 12, 16);
+        ctx.fillStyle = "#ffd166";
+        ctx.textAlign = "center";
+        ctx.fillText(badgeText, s[0], s[1] - 6);
+        ctx.textAlign = "left";
+      }
       ctx.globalAlpha = 1;
 
     } else if (it.kind === "arc") {
       const arc = it.arc;
       const col = CLASS_COLORS[arc.class] || CLASS_COLORS.other;
+      const isHighlightedArc = V3.highlight && V3.highlight.toLowerCase().includes(arc.ability.toLowerCase());
 
       // Laser vertical drop-line from apex down to floor
       const apexIdx = Math.floor(it.pts.length / 2);
@@ -970,29 +1171,21 @@ function draw3D() {
         // Floor shadow ellipse
         ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
         ctx.beginPath();
-        ctx.ellipse(floor2D[0], floor2D[1], 7, 3, 0, 0, Math.PI * 2);
+        ctx.ellipse(floor2D[0], floor2D[1], 6, 3, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Vertical drop-line
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = isHighlightedArc ? "rgba(0, 210, 255, 0.6)" : "rgba(255, 255, 255, 0.12)";
+        ctx.lineWidth = isHighlightedArc ? 1.5 : 0.8;
         ctx.setLineDash([2, 3]);
         ctx.beginPath(); ctx.moveTo(apex2D[0], apex2D[1]); ctx.lineTo(floor2D[0], floor2D[1]); ctx.stroke();
         ctx.setLineDash([]);
       }
 
-      // Outer glow curve
+      // Trajectory curve
       ctx.strokeStyle = col;
-      ctx.lineWidth = 4;
-      ctx.globalAlpha = 0.25;
-      ctx.beginPath();
-      ctx.moveTo(it.pts[0][0], it.pts[0][1]);
-      for (let i = 1; i < it.pts.length; i++) ctx.lineTo(it.pts[i][0], it.pts[i][1]);
-      ctx.stroke();
-
-      // Sharp inner trajectory arc
-      ctx.lineWidth = 1.8;
-      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = isHighlightedArc ? 3.5 : 1.6;
+      ctx.globalAlpha = isHighlightedArc ? 1.0 : 0.65;
       ctx.beginPath();
       ctx.moveTo(it.pts[0][0], it.pts[0][1]);
       for (let i = 1; i < it.pts.length; i++) ctx.lineTo(it.pts[i][0], it.pts[i][1]);
@@ -1008,9 +1201,9 @@ function draw3D() {
       ctx.fillStyle = col;
       ctx.beginPath(); ctx.arc(endPt[0], endPt[1], 3.5, 0, Math.PI * 2); ctx.fill();
 
-      // Floating holographic tag at apex
-      if (arc.apex_h >= 6) {
-        ctx.fillStyle = "rgba(4, 7, 17, 0.85)";
+      // Only draw floating tag if explicitly highlighted
+      if (isHighlightedArc) {
+        ctx.fillStyle = "rgba(4, 7, 17, 0.9)";
         ctx.strokeStyle = col;
         ctx.lineWidth = 1;
         const tagText = `${arc.ability.toUpperCase()} // ${Math.round(arc.apex_h)}m`;
@@ -1081,9 +1274,25 @@ function v3Controls() {
     V3.dist = Math.max(70, Math.min(460, V3.dist * (1 + e.deltaY * 0.0012)));
   }, { passive: false });
 
+  const setViewPreset = (yaw, pitch, dist, btnId) => {
+    V3.yaw = yaw;
+    V3.pitch = pitch;
+    V3.dist = dist;
+    V3.auto = false;
+    v3AutoLabel();
+    ["v3-topdown", "v3-iso", "v3-retake"].forEach(id => {
+      const b = $(id);
+      if (b) b.classList.toggle("active", id === btnId);
+    });
+  };
+
+  if ($("v3-topdown")) $("v3-topdown").addEventListener("click", () => setViewPreset(0.05, 1.22, 175, "v3-topdown"));
+  if ($("v3-iso")) $("v3-iso").addEventListener("click", () => setViewPreset(0.75, 0.65, 185, "v3-iso"));
+  if ($("v3-retake")) $("v3-retake").addEventListener("click", () => setViewPreset(0.10, 0.28, 195, "v3-retake"));
+
   $("v3-auto").addEventListener("click", () => { V3.auto = !V3.auto; v3AutoLabel(); });
   $("v3-reset").addEventListener("click", () => {
-    V3.yaw = 0.8; V3.pitch = 0.42; V3.dist = 185; V3.auto = false; v3AutoLabel();
+    setViewPreset(0.05, 1.22, 175, "v3-topdown");
   });
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     V3.auto = false;
@@ -1297,15 +1506,6 @@ async function loadCues() {
     setState(el, "error", `FAILED TO LOAD COUNTER-BRIEF: ${err.message}`);
   }
 }
-
-const LAYER_LABELS = {
-  smoke: "SMOKE ☁",
-  recon: "RECON ◎",
-  placeable: "TRAP ◈",
-  stall: "STALL ▲",
-  flash: "FLASH ✦",
-  density: "HEATMAP ♨"
-};
 
 function renderToggles() {
   $("layer-toggles").innerHTML = Object.keys(layers).map(k =>
