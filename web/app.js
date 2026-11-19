@@ -169,6 +169,188 @@ function atlasQuery() {
 /* ---------------- Map Blueprint Floorplan Renderer ----------------
    Renders calibrated VALORANT architectural floorplans: true corridor pathways,
    interconnected rooms, bombsite plant zones, and tournament callout anchors. */
+/* ---------------- Authentic VALORANT Architectural Blueprints ---------------- */
+const MAP_BLUEPRINTS = {
+  bind: {
+    corridors: [
+      [0.56, 0.20, 0.28, 0.24], // A Site
+      [0.50, 0.44, 0.16, 0.20], // A Short
+      [0.72, 0.42, 0.16, 0.26], // A Showers/Baths
+      [0.74, 0.16, 0.12, 0.12], // A Tower (Heaven)
+      [0.52, 0.26, 0.10, 0.14], // Lamps (U-Hall)
+      [0.18, 0.20, 0.26, 0.24], // B Site
+      [0.10, 0.38, 0.14, 0.30], // B Long
+      [0.30, 0.46, 0.16, 0.18], // B Hookah (Window)
+      [0.12, 0.20, 0.12, 0.16], // B Garden / Elbow
+      [0.32, 0.14, 0.12, 0.12], // B Hall
+      [0.44, 0.38, 0.10, 0.08], // Teleporter A -> B Short
+      [0.18, 0.52, 0.08, 0.08], // Teleporter B Long -> A Lobby
+      [0.36, 0.04, 0.28, 0.12], // Defender Spawn
+      [0.34, 0.78, 0.32, 0.16], // Attacker Spawn
+    ],
+    plants: [
+      [0.62, 0.24, 0.16, 0.16, "A SITE"],
+      [0.23, 0.24, 0.16, 0.16, "B SITE"],
+    ],
+    callouts: [
+      [0.74, 0.55, "SHOWERS", "#94a3b8"],
+      [0.52, 0.54, "A SHORT", "#94a3b8"],
+      [0.53, 0.34, "U-HALL", "#00d2ff"],
+      [0.32, 0.56, "HOOKAH", "#00d2ff"],
+      [0.11, 0.54, "B LONG", "#94a3b8"],
+      [0.13, 0.27, "GARDEN", "#94a3b8"],
+      [0.44, 0.43, "TP [A➔B]", "#ffd166"],
+      [0.40, 0.11, "DEF SPAWN", "#94a3b8"],
+      [0.40, 0.88, "ATK SPAWN", "#94a3b8"]
+    ]
+  },
+  lotus: {
+    corridors: [
+      [0.66, 0.18, 0.24, 0.26], // A Site
+      [0.70, 0.44, 0.16, 0.24], // A Main / Tree
+      [0.62, 0.26, 0.12, 0.12], // A Hut
+      [0.40, 0.22, 0.20, 0.22], // B Site
+      [0.42, 0.44, 0.16, 0.20], // B Main
+      [0.14, 0.22, 0.22, 0.26], // C Site
+      [0.12, 0.48, 0.16, 0.22], // C Main / Mound
+      [0.18, 0.14, 0.12, 0.12], // C Waterfall
+      [0.58, 0.34, 0.08, 0.08], // Rotating Door A-B
+      [0.34, 0.34, 0.08, 0.08], // Rotating Door B-C
+      [0.38, 0.04, 0.24, 0.12], // Defender Base
+      [0.34, 0.78, 0.32, 0.16], // Attacker Base
+    ],
+    plants: [
+      [0.70, 0.22, 0.16, 0.16, "A SITE"],
+      [0.42, 0.25, 0.16, 0.16, "B SITE"],
+      [0.16, 0.26, 0.16, 0.16, "C SITE"]
+    ],
+    callouts: [
+      [0.72, 0.56, "A TREE", "#94a3b8"],
+      [0.63, 0.32, "A HUT", "#00d2ff"],
+      [0.43, 0.54, "B MAIN", "#94a3b8"],
+      [0.14, 0.60, "C MOUND", "#94a3b8"],
+      [0.16, 0.18, "WATERFALL", "#94a3b8"],
+      [0.56, 0.39, "ROT DOOR", "#ffd166"],
+      [0.40, 0.10, "DEF BASE", "#94a3b8"],
+      [0.40, 0.88, "ATK BASE", "#94a3b8"]
+    ]
+  },
+  haven: {
+    corridors: [
+      [0.64, 0.18, 0.24, 0.24], // A Site
+      [0.70, 0.42, 0.16, 0.28], // A Long
+      [0.58, 0.42, 0.12, 0.20], // A Sewer
+      [0.40, 0.24, 0.20, 0.22], // B Site
+      [0.42, 0.46, 0.16, 0.18], // Mid Courtyard / Window
+      [0.14, 0.20, 0.22, 0.26], // C Site
+      [0.10, 0.46, 0.14, 0.24], // C Long
+      [0.24, 0.38, 0.14, 0.18], // C Garage
+      [0.38, 0.04, 0.24, 0.12], // Defender Spawn
+      [0.34, 0.78, 0.32, 0.16], // Attacker Spawn
+    ],
+    plants: [
+      [0.68, 0.22, 0.16, 0.16, "A SITE"],
+      [0.42, 0.26, 0.16, 0.16, "B SITE"],
+      [0.16, 0.24, 0.16, 0.16, "C SITE"]
+    ],
+    callouts: [
+      [0.72, 0.56, "A LONG", "#94a3b8"],
+      [0.59, 0.52, "A SEWER", "#94a3b8"],
+      [0.43, 0.55, "MID COURTYARD", "#00d2ff"],
+      [0.11, 0.58, "C LONG", "#94a3b8"],
+      [0.25, 0.48, "GARAGE", "#00d2ff"],
+      [0.40, 0.10, "DEF SPAWN", "#94a3b8"],
+      [0.40, 0.88, "ATK SPAWN", "#94a3b8"]
+    ]
+  },
+  split: {
+    corridors: [
+      [0.58, 0.18, 0.26, 0.26], // A Site
+      [0.66, 0.44, 0.18, 0.26], // A Main
+      [0.54, 0.38, 0.12, 0.18], // A Ramps
+      [0.72, 0.14, 0.12, 0.12], // A Heaven
+      [0.40, 0.36, 0.20, 0.28], // Mid Bottom & Vents
+      [0.16, 0.18, 0.26, 0.26], // B Site
+      [0.12, 0.44, 0.16, 0.26], // B Main
+      [0.14, 0.14, 0.12, 0.12], // B Heaven / Alley
+      [0.38, 0.04, 0.24, 0.12], // Defender Spawn
+      [0.34, 0.78, 0.32, 0.16], // Attacker Spawn
+    ],
+    plants: [
+      [0.62, 0.22, 0.16, 0.16, "A SITE"],
+      [0.20, 0.22, 0.16, 0.16, "B SITE"]
+    ],
+    callouts: [
+      [0.68, 0.58, "A MAIN", "#94a3b8"],
+      [0.54, 0.48, "RAMPS", "#94a3b8"],
+      [0.73, 0.20, "A HEAVEN", "#00d2ff"],
+      [0.42, 0.52, "MID BOTTOM", "#94a3b8"],
+      [0.42, 0.42, "MID VENTS", "#00d2ff"],
+      [0.13, 0.58, "B MAIN", "#94a3b8"],
+      [0.14, 0.20, "B HEAVEN", "#00d2ff"],
+      [0.40, 0.10, "DEF SPAWN", "#94a3b8"],
+      [0.40, 0.88, "ATK SPAWN", "#94a3b8"]
+    ]
+  },
+  ascent: {
+    corridors: [
+      [0.60, 0.18, 0.26, 0.26], // A Site
+      [0.68, 0.44, 0.16, 0.24], // A Main
+      [0.72, 0.14, 0.12, 0.12], // A Rafters / Heaven
+      [0.54, 0.28, 0.12, 0.14], // A Tree
+      [0.38, 0.32, 0.24, 0.30], // Mid Courtyard & Catwalk
+      [0.16, 0.18, 0.26, 0.26], // B Site
+      [0.12, 0.44, 0.16, 0.24], // B Main
+      [0.26, 0.32, 0.12, 0.14], // B Market
+      [0.12, 0.14, 0.12, 0.12], // Boathouse
+      [0.38, 0.04, 0.24, 0.12], // Defender Spawn
+      [0.34, 0.78, 0.32, 0.16], // Attacker Spawn
+    ],
+    plants: [
+      [0.64, 0.22, 0.16, 0.16, "A SITE"],
+      [0.20, 0.22, 0.16, 0.16, "B SITE"]
+    ],
+    callouts: [
+      [0.70, 0.56, "A MAIN", "#94a3b8"],
+      [0.55, 0.35, "A TREE", "#94a3b8"],
+      [0.42, 0.48, "MID COURTYARD", "#00d2ff"],
+      [0.40, 0.38, "MID CATWALK", "#94a3b8"],
+      [0.13, 0.56, "B MAIN", "#94a3b8"],
+      [0.27, 0.38, "B MARKET", "#94a3b8"],
+      [0.13, 0.20, "BOATHOUSE", "#00d2ff"],
+      [0.40, 0.10, "DEF SPAWN", "#94a3b8"],
+      [0.40, 0.88, "ATK SPAWN", "#94a3b8"]
+    ]
+  },
+  default: {
+    corridors: [
+      [0.58, 0.18, 0.28, 0.26], // A Site
+      [0.64, 0.44, 0.18, 0.26], // A Approach
+      [0.38, 0.34, 0.24, 0.28], // Mid Sector
+      [0.14, 0.18, 0.28, 0.26], // B Site
+      [0.16, 0.44, 0.18, 0.26], // B Approach
+      [0.38, 0.04, 0.24, 0.12], // Defender Spawn
+      [0.34, 0.78, 0.32, 0.16], // Attacker Spawn
+    ],
+    plants: [
+      [0.62, 0.22, 0.18, 0.16, "A SITE"],
+      [0.18, 0.22, 0.18, 0.16, "B SITE"]
+    ],
+    callouts: [
+      [0.65, 0.58, "A APPROACH", "#94a3b8"],
+      [0.41, 0.48, "MID CHOKE", "#00d2ff"],
+      [0.17, 0.58, "B APPROACH", "#94a3b8"],
+      [0.40, 0.10, "DEF SPAWN", "#94a3b8"],
+      [0.40, 0.88, "ATK SPAWN", "#94a3b8"]
+    ]
+  }
+};
+
+function getMapBlueprint(mapName) {
+  const m = (mapName || "").toLowerCase();
+  return MAP_BLUEPRINTS[m] || MAP_BLUEPRINTS.default;
+}
+
 function drawMapFloorplan(ctx, mapName, W, H, bounds) {
   const map = (mapName || "split").toLowerCase();
   const cx = W / 2, cy = H / 2;
@@ -251,20 +433,21 @@ function drawMapFloorplan(ctx, mapName, W, H, bounds) {
   ctx.arc(cx, cy, 6, 0, Math.PI * 2);
   ctx.stroke();
 
-  // -------------------------------------------------------------------------
-  // 5. AUTHENTIC VALORANT ARCHITECTURAL BLUEPRINT CORRIDORS & BOMBSITES
-  // -------------------------------------------------------------------------
-  const drawCorridor = (x, y, w, h) => {
+  // 5. Draw Architectural Blueprint Corridors, Plant Zones & Callouts
+  const bp = getMapBlueprint(map);
+
+  // Corridors
+  for (const [x, y, w, h] of bp.corridors) {
     ctx.fillStyle = "rgba(13, 22, 38, 0.85)";
     ctx.fillRect(x * W, y * H, w * W, h * H);
     ctx.strokeStyle = "rgba(0, 210, 255, 0.38)";
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x * W, y * H, w * W, h * H);
-  };
+  }
 
-  const drawPlantZone = (x, y, w, h, label) => {
+  // Plant Zones
+  for (const [x, y, w, h, label] of bp.plants) {
     const rx = x * W, ry = y * H, rw = w * W, rh = h * H;
-    // Radiant hazard zone
     ctx.fillStyle = "rgba(255, 70, 85, 0.22)";
     ctx.fillRect(rx, ry, rw, rh);
 
@@ -274,7 +457,6 @@ function drawMapFloorplan(ctx, mapName, W, H, bounds) {
     ctx.strokeRect(rx, ry, rw, rh);
     ctx.setLineDash([]);
 
-    // Corner site brackets
     const cLen = 8;
     ctx.beginPath(); ctx.moveTo(rx, ry + cLen); ctx.lineTo(rx, ry); ctx.lineTo(rx + cLen, ry); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(rx + rw - cLen, ry); ctx.lineTo(rx + rw, ry); ctx.lineTo(rx + rw, ry + cLen); ctx.stroke();
@@ -286,183 +468,13 @@ function drawMapFloorplan(ctx, mapName, W, H, bounds) {
     ctx.textAlign = "center";
     ctx.fillText(label, rx + rw / 2, ry + rh / 2 + 5);
     ctx.textAlign = "left";
-  };
+  }
 
-  const drawCallout = (x, y, label, col = "rgba(0, 210, 255, 0.75)") => {
-    ctx.fillStyle = col;
+  // Callouts
+  for (const [x, y, label, col] of bp.callouts) {
+    ctx.fillStyle = col || "rgba(0, 210, 255, 0.75)";
     ctx.font = "bold 10px 'JetBrains Mono', monospace";
     ctx.fillText(label, x * W, y * H);
-  };
-
-  // Map-Specific Architectural Geometry
-  if (map === "bind") {
-    // A-Site Wing (Right)
-    drawCorridor(0.56, 0.20, 0.28, 0.24); // A Site
-    drawCorridor(0.50, 0.44, 0.16, 0.20); // A Short
-    drawCorridor(0.72, 0.42, 0.16, 0.26); // A Showers/Baths
-    drawCorridor(0.74, 0.16, 0.12, 0.12); // A Tower (Heaven)
-    drawCorridor(0.52, 0.26, 0.10, 0.14); // Lamps (U-Hall)
-
-    // B-Site Wing (Left)
-    drawCorridor(0.18, 0.20, 0.26, 0.24); // B Site
-    drawCorridor(0.10, 0.38, 0.14, 0.30); // B Long
-    drawCorridor(0.30, 0.46, 0.16, 0.18); // B Hookah (Window)
-    drawCorridor(0.12, 0.20, 0.12, 0.16); // B Garden / Elbow
-    drawCorridor(0.32, 0.14, 0.12, 0.12); // B Hall
-
-    // Connectors & Spawns
-    drawCorridor(0.44, 0.38, 0.10, 0.08); // Teleporter A -> B Short
-    drawCorridor(0.18, 0.52, 0.08, 0.08); // Teleporter B Long -> A Lobby
-    drawCorridor(0.36, 0.04, 0.28, 0.12); // Defender Spawn
-    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Spawn
-
-    // Bombsites
-    drawPlantZone(0.62, 0.24, 0.16, 0.16, "A SITE");
-    drawPlantZone(0.23, 0.24, 0.16, 0.16, "B SITE");
-
-    // Callout labels
-    drawCallout(0.74, 0.55, "SHOWERS");
-    drawCallout(0.52, 0.54, "A SHORT");
-    drawCallout(0.53, 0.34, "U-HALL");
-    drawCallout(0.32, 0.56, "HOOKAH");
-    drawCallout(0.11, 0.54, "B LONG");
-    drawCallout(0.13, 0.27, "GARDEN");
-    drawCallout(0.44, 0.43, "TP [A➔B]", "#ffd166");
-    drawCallout(0.40, 0.11, "DEF SPAWN", "#94a3b8");
-    drawCallout(0.40, 0.88, "ATK SPAWN", "#94a3b8");
-
-  } else if (map === "lotus") {
-    // 3-Site Architecture
-    drawCorridor(0.66, 0.18, 0.24, 0.26); // A Site
-    drawCorridor(0.70, 0.44, 0.16, 0.24); // A Main / Tree
-    drawCorridor(0.62, 0.26, 0.12, 0.12); // A Hut
-    drawCorridor(0.40, 0.22, 0.20, 0.22); // B Site (Center)
-    drawCorridor(0.42, 0.44, 0.16, 0.20); // B Main
-    drawCorridor(0.14, 0.22, 0.22, 0.26); // C Site (Left)
-    drawCorridor(0.12, 0.48, 0.16, 0.22); // C Main / Mound
-    drawCorridor(0.18, 0.14, 0.12, 0.12); // C Waterfall
-
-    // Rotating Doors & Spawns
-    drawCorridor(0.58, 0.34, 0.08, 0.08); // Rotating Door A-B
-    drawCorridor(0.34, 0.34, 0.08, 0.08); // Rotating Door B-C
-    drawCorridor(0.38, 0.04, 0.24, 0.12); // Defender Base
-    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Base
-
-    // Bombsites
-    drawPlantZone(0.70, 0.22, 0.16, 0.16, "A SITE");
-    drawPlantZone(0.42, 0.25, 0.16, 0.16, "B SITE");
-    drawPlantZone(0.16, 0.26, 0.16, 0.16, "C SITE");
-
-    // Callout labels
-    drawCallout(0.72, 0.56, "A TREE");
-    drawCallout(0.63, 0.32, "A HUT");
-    drawCallout(0.43, 0.54, "B MAIN");
-    drawCallout(0.14, 0.60, "C MOUND");
-    drawCallout(0.16, 0.18, "WATERFALL");
-    drawCallout(0.56, 0.39, "ROT DOOR", "#ffd166");
-    drawCallout(0.40, 0.10, "DEF BASE", "#94a3b8");
-    drawCallout(0.40, 0.88, "ATK BASE", "#94a3b8");
-
-  } else if (map === "haven") {
-    // 3-Site Architecture
-    drawCorridor(0.64, 0.18, 0.24, 0.24); // A Site
-    drawCorridor(0.70, 0.42, 0.16, 0.28); // A Long
-    drawCorridor(0.58, 0.42, 0.12, 0.20); // A Sewer
-    drawCorridor(0.40, 0.24, 0.20, 0.22); // B Site
-    drawCorridor(0.42, 0.46, 0.16, 0.18); // Mid Courtyard / Window
-    drawCorridor(0.14, 0.20, 0.22, 0.26); // C Site
-    drawCorridor(0.10, 0.46, 0.14, 0.24); // C Long
-    drawCorridor(0.24, 0.38, 0.14, 0.18); // C Garage / Connector
-
-    drawCorridor(0.38, 0.04, 0.24, 0.12); // Defender Spawn
-    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Spawn
-
-    drawPlantZone(0.68, 0.22, 0.16, 0.16, "A SITE");
-    drawPlantZone(0.42, 0.26, 0.16, 0.16, "B SITE");
-    drawPlantZone(0.16, 0.24, 0.16, 0.16, "C SITE");
-
-    drawCallout(0.72, 0.56, "A LONG");
-    drawCallout(0.59, 0.52, "A SEWER");
-    drawCallout(0.43, 0.55, "MID COURTYARD");
-    drawCallout(0.11, 0.58, "C LONG");
-    drawCallout(0.25, 0.48, "GARAGE");
-    drawCallout(0.40, 0.10, "DEF SPAWN", "#94a3b8");
-    drawCallout(0.40, 0.88, "ATK SPAWN", "#94a3b8");
-
-  } else if (map === "split") {
-    // Split Architecture
-    drawCorridor(0.58, 0.18, 0.26, 0.26); // A Site
-    drawCorridor(0.66, 0.44, 0.18, 0.26); // A Main
-    drawCorridor(0.54, 0.38, 0.12, 0.18); // A Ramps
-    drawCorridor(0.72, 0.14, 0.12, 0.12); // A Heaven
-    drawCorridor(0.40, 0.36, 0.20, 0.28); // Mid (Bottom & Vents & Mail)
-    drawCorridor(0.16, 0.18, 0.26, 0.26); // B Site
-    drawCorridor(0.12, 0.44, 0.16, 0.26); // B Main
-    drawCorridor(0.14, 0.14, 0.12, 0.12); // B Heaven / Alley
-
-    drawCorridor(0.38, 0.04, 0.24, 0.12); // Defender Spawn
-    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Spawn
-
-    drawPlantZone(0.62, 0.22, 0.16, 0.16, "A SITE");
-    drawPlantZone(0.20, 0.22, 0.16, 0.16, "B SITE");
-
-    drawCallout(0.68, 0.58, "A MAIN");
-    drawCallout(0.54, 0.48, "RAMPS");
-    drawCallout(0.73, 0.20, "A HEAVEN");
-    drawCallout(0.42, 0.52, "MID BOTTOM");
-    drawCallout(0.42, 0.42, "MID VENTS");
-    drawCallout(0.13, 0.58, "B MAIN");
-    drawCallout(0.14, 0.20, "B HEAVEN");
-    drawCallout(0.40, 0.10, "DEF SPAWN", "#94a3b8");
-    drawCallout(0.40, 0.88, "ATK SPAWN", "#94a3b8");
-
-  } else if (map === "ascent") {
-    // Ascent Architecture
-    drawCorridor(0.60, 0.18, 0.26, 0.26); // A Site
-    drawCorridor(0.68, 0.44, 0.16, 0.24); // A Main
-    drawCorridor(0.72, 0.14, 0.12, 0.12); // A Rafters / Heaven
-    drawCorridor(0.54, 0.28, 0.12, 0.14); // A Tree
-    drawCorridor(0.38, 0.32, 0.24, 0.30); // Mid Courtyard & Catwalk
-    drawCorridor(0.16, 0.18, 0.26, 0.26); // B Site
-    drawCorridor(0.12, 0.44, 0.16, 0.24); // B Main
-    drawCorridor(0.26, 0.32, 0.12, 0.14); // B Market
-    drawCorridor(0.12, 0.14, 0.12, 0.12); // Boathouse
-
-    drawCorridor(0.38, 0.04, 0.24, 0.12); // Defender Spawn
-    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Spawn
-
-    drawPlantZone(0.64, 0.22, 0.16, 0.16, "A SITE");
-    drawPlantZone(0.20, 0.22, 0.16, 0.16, "B SITE");
-
-    drawCallout(0.70, 0.56, "A MAIN");
-    drawCallout(0.55, 0.35, "A TREE");
-    drawCallout(0.42, 0.48, "MID COURTYARD");
-    drawCallout(0.40, 0.38, "MID CATWALK");
-    drawCallout(0.13, 0.56, "B MAIN");
-    drawCallout(0.27, 0.38, "B MARKET");
-    drawCallout(0.13, 0.20, "BOATHOUSE");
-    drawCallout(0.40, 0.10, "DEF SPAWN", "#94a3b8");
-    drawCallout(0.40, 0.88, "ATK SPAWN", "#94a3b8");
-
-  } else {
-    // Standard Tactical Arena Layout (Sunset / Abyss / Icebox / Pearl / Summit / Corrode / Fracture)
-    drawCorridor(0.58, 0.18, 0.28, 0.26); // A Site
-    drawCorridor(0.64, 0.44, 0.18, 0.26); // A Approach
-    drawCorridor(0.38, 0.34, 0.24, 0.28); // Mid Sector
-    drawCorridor(0.14, 0.18, 0.28, 0.26); // B Site
-    drawCorridor(0.16, 0.44, 0.18, 0.26); // B Approach
-
-    drawCorridor(0.38, 0.04, 0.24, 0.12); // Defender Spawn
-    drawCorridor(0.34, 0.78, 0.32, 0.16); // Attacker Spawn
-
-    drawPlantZone(0.62, 0.22, 0.18, 0.16, "A SITE");
-    drawPlantZone(0.18, 0.22, 0.18, 0.16, "B SITE");
-
-    drawCallout(0.65, 0.58, "A APPROACH");
-    drawCallout(0.41, 0.48, "MID CHOKE");
-    drawCallout(0.17, 0.58, "B APPROACH");
-    drawCallout(0.40, 0.10, "DEF SPAWN", "#94a3b8");
-    drawCallout(0.40, 0.88, "ATK SPAWN", "#94a3b8");
   }
 
   ctx.restore();
@@ -926,10 +938,11 @@ function radarLoop() {
   requestAnimationFrame(radarLoop);
 }
 
-/* ---------------- 3D Trajectory Orbit Viewer (Holographic Arena) ---------------- */
+/* ---------------- 3D Trajectory Orbit Viewer (Spectacular Stadium 3D Arena) ---------------- */
 const V3 = {
-  // Default: Tactical Top-Down Bird's-Eye View (70° high angle, clean floor projection)
-  yaw: 0.05, pitch: 1.22, dist: 175, auto: false, highlight: null,
+  // Hero Stadium 3D Angle: elevated ~35° pitch framing the floor blueprint while parabolic curves soar upwards
+  yaw: 0.45, pitch: 0.48, dist: 145, auto: false, highlight: null,
+  hoveredArc: null, mousePos: null,
   lineups: [], arcs: [], bounds: { w: 110, h: 120 }, map: "",
   visible: true, dragging: false,
 
@@ -938,12 +951,12 @@ const V3 = {
     this.bounds = bounds || { w: 110, h: 120 };
     this.lineups = (lineups || []).filter(l => l.map === map && l.trajectory);
 
-    // Ingest all active casts and build 3D parabolic flight curves
+    // Ingest active casts and build soaring 3D parabolic curves
     this.arcs = [];
     const pts = (atlas && atlas.points) ? atlas.points : [];
     const abilityFilter = $("f-ability") ? $("f-ability").value : "";
 
-    // Sample up to 60 prominent casts to maintain 60 FPS
+    // Sample up to 60 prominent casts to maintain silky 60 FPS
     const sample = pts.filter(p => !abilityFilter || p.ability === abilityFilter).slice(0, 60);
 
     for (const p of sample) {
@@ -958,11 +971,12 @@ const V3 = {
 
       const dist_m = Math.hypot(pEnd[0] - pStart[0], pEnd[1] - pStart[1]);
       const pitchRad = Math.abs(p.pitch || 25) * Math.PI / 180;
-      const apex_h = Math.max(3.5, Math.min(32.0, dist_m * 0.36 + Math.sin(pitchRad) * 14));
+      // Parabolic apex height: 4.5m to 35m athletic soaring curve
+      const apex_h = Math.max(4.5, Math.min(35.0, dist_m * 0.44 + Math.sin(pitchRad) * 14));
 
-      // Generate 16 sample coordinates along parabolic flight path
+      // Generate 20 sample coordinates along parabolic flight path
       const curvePts = [];
-      const N_SAMPLES = 16;
+      const N_SAMPLES = 20;
       for (let s = 0; s <= N_SAMPLES; s++) {
         const t = s / N_SAMPLES;
         const x = pStart[0] + (pEnd[0] - pStart[0]) * t;
@@ -975,6 +989,7 @@ const V3 = {
         p,
         pStart,
         pEnd,
+        dist_m,
         apex_h,
         curvePts,
         class: p.class || "other",
@@ -984,7 +999,7 @@ const V3 = {
     }
 
     const canvas = $("traj3d");
-    const h = Math.max(420, Math.min(560, Math.round(800 * (bounds.h || 120) / (bounds.w || 110))));
+    const h = Math.max(460, Math.min(560, Math.round(800 * (bounds.h || 120) / (bounds.w || 110))));
     if (canvas && canvas.height !== h) canvas.height = h;
   },
 
@@ -1001,8 +1016,9 @@ const V3 = {
     const up = y1 * sp + z * cp;
     const d = this.dist - depth;
     if (d < 8) return null;
-    const f = Math.min(w, h) * 0.95;
-    return [w / 2 + x1 * f / d, h * 0.56 - up * f / d, d];
+    const f = Math.min(w, h) * 0.96;
+    // Ground plane anchored at lower ~66% of canvas, leaving open sky for soaring arches
+    return [w / 2 + x1 * f / d, h * 0.66 - up * f / d, d];
   },
 };
 
@@ -1016,14 +1032,15 @@ function draw3D() {
   ctx.fillStyle = "#040711";
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle radial vignette in 3D arena
-  const arenaGlow = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, W * 0.65);
-  arenaGlow.addColorStop(0, "rgba(0, 210, 255, 0.04)");
-  arenaGlow.addColorStop(1, "rgba(2, 4, 8, 0.9)");
+  // 1. Tactical Stadium Floodlight Vignette
+  const arenaGlow = ctx.createRadialGradient(W / 2, H * 0.58, 40, W / 2, H * 0.58, W * 0.65);
+  arenaGlow.addColorStop(0, "rgba(0, 210, 255, 0.06)");
+  arenaGlow.addColorStop(0.6, "rgba(7, 14, 28, 0.7)");
+  arenaGlow.addColorStop(1, "rgba(2, 4, 8, 0.98)");
   ctx.fillStyle = arenaGlow;
   ctx.fillRect(0, 0, W, H);
 
-  // 1. Isometric 16x16 Perspective Ground Grid
+  // 2. Perspective Ground Grid (16x16)
   const halfW = V3.bounds.w / 2, halfH = V3.bounds.h / 2;
   const gridDivs = 16;
   ctx.lineWidth = 1;
@@ -1033,18 +1050,15 @@ function draw3D() {
     const gx = -halfW + frac * V3.bounds.w;
     const gy = -halfH + frac * V3.bounds.h;
 
-    // Major axis lines vs minor grid
     const isMajor = (i === 0 || i === gridDivs || i === gridDivs / 2);
     ctx.strokeStyle = isMajor ? "rgba(0, 210, 255, 0.22)" : "rgba(0, 210, 255, 0.05)";
 
-    // Lines along Y
     const p1 = V3.project(gx, -halfH, 0, W, H);
     const p2 = V3.project(gx, halfH, 0, W, H);
     if (p1 && p2) {
       ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke();
     }
 
-    // Lines along X
     const p3 = V3.project(-halfW, gy, 0, W, H);
     const p4 = V3.project(halfW, gy, 0, W, H);
     if (p3 && p4) {
@@ -1052,7 +1066,7 @@ function draw3D() {
     }
   }
 
-  // 2. Projected Ground Range Circles (25m, 50m, 75m)
+  // 3. Projected Ground Range Circles (25m, 50m, 75m)
   [25, 50, 75].forEach(r => {
     ctx.strokeStyle = "rgba(0, 210, 255, 0.07)";
     ctx.setLineDash([3, 4]);
@@ -1068,34 +1082,91 @@ function draw3D() {
     ctx.setLineDash([]);
   });
 
-  // 3. Four Corner Laser Beacon Pillars (0 to 35m height)
+  // 4. AUTHENTIC 3D GROUND BLUEPRINT (Corridors & Plant Zones on Floor)
+  const bp = getMapBlueprint(V3.map);
+
+  // Corridors on 3D floor
+  for (const [u, v, w, h] of bp.corridors) {
+    const c1 = V3.project(...V3.toWorld(u, v, 0), W, H);
+    const c2 = V3.project(...V3.toWorld(u + w, v, 0), W, H);
+    const c3 = V3.project(...V3.toWorld(u + w, v + h, 0), W, H);
+    const c4 = V3.project(...V3.toWorld(u, v + h, 0), W, H);
+    if (c1 && c2 && c3 && c4) {
+      ctx.beginPath();
+      ctx.moveTo(c1[0], c1[1]);
+      ctx.lineTo(c2[0], c2[1]);
+      ctx.lineTo(c3[0], c3[1]);
+      ctx.lineTo(c4[0], c4[1]);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(10, 18, 32, 0.68)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0, 210, 255, 0.22)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  // Bombsite Plant Zones on 3D floor
+  for (const [u, v, w, h, label] of bp.plants) {
+    const c1 = V3.project(...V3.toWorld(u, v, 0), W, H);
+    const c2 = V3.project(...V3.toWorld(u + w, v, 0), W, H);
+    const c3 = V3.project(...V3.toWorld(u + w, v + h, 0), W, H);
+    const c4 = V3.project(...V3.toWorld(u, v + h, 0), W, H);
+    if (c1 && c2 && c3 && c4) {
+      ctx.beginPath();
+      ctx.moveTo(c1[0], c1[1]);
+      ctx.lineTo(c2[0], c2[1]);
+      ctx.lineTo(c3[0], c3[1]);
+      ctx.lineTo(c4[0], c4[1]);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(255, 70, 85, 0.20)";
+      ctx.fill();
+      ctx.strokeStyle = "#ff4655";
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Floor Plant Zone Tag
+      const midFloor = V3.project(...V3.toWorld(u + w / 2, v + h / 2, 0), W, H);
+      if (midFloor) {
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 11px 'Rajdhani', sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(`[ ${label} ]`, midFloor[0], midFloor[1] + 4);
+        ctx.textAlign = "left";
+      }
+    }
+  }
+
+  // 5. Four Corner Laser Beacon Pillars (0 to 40m height)
   const cornerCoords = [
     [-halfW, -halfH], [halfW, -halfH], [halfW, halfH], [-halfW, halfH]
   ];
   cornerCoords.forEach(([cx, cy]) => {
     const base = V3.project(cx, cy, 0, W, H);
-    const top = V3.project(cx, cy, 35, W, H);
+    const top = V3.project(cx, cy, 40, W, H);
     if (base && top) {
-      ctx.strokeStyle = "rgba(0, 210, 255, 0.25)";
+      ctx.strokeStyle = "rgba(0, 210, 255, 0.28)";
       ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
 
-      // Elevation tick marks on pillars (10m, 20m, 30m)
-      [10, 20, 30].forEach(z => {
+      // Elevation tick rings on pillars (10m, 20m, 30m, 40m)
+      [10, 20, 30, 40].forEach(z => {
         const tick = V3.project(cx, cy, z, W, H);
         if (tick) {
-          ctx.strokeStyle = "rgba(0, 210, 255, 0.5)";
-          ctx.beginPath(); ctx.arc(tick[0], tick[1], 1.5, 0, Math.PI * 2); ctx.stroke();
+          ctx.strokeStyle = "rgba(0, 210, 255, 0.55)";
+          ctx.beginPath(); ctx.arc(tick[0], tick[1], 1.6, 0, Math.PI * 2); ctx.stroke();
         }
       });
     }
   });
 
-  // 4. Collect and Depth-Sort 3D Render Elements
+  // 6. Collect and Depth-Sort 3D Render Elements
   const renderItems = [];
-
-  // Repeated lineups
   const abilityFilter = $("f-ability") ? $("f-ability").value : "";
+
+  // Repeated exploit lineups
   for (const l of V3.lineups) {
     if (abilityFilter && l.ability !== abilityFilter) continue;
     const pts = l.trajectory.points
@@ -1104,7 +1175,7 @@ function draw3D() {
     const mid = pts[Math.floor(pts.length / 2)];
     renderItems.push({
       depth: mid[2], kind: "lineup", pts, l,
-      hl: V3.highlight === `${l.ability}@${l.map}`
+      hl: (V3.highlight === `${l.ability}@${l.map}`) || (V3.hoveredArc && V3.hoveredArc.l === l)
     });
   }
 
@@ -1114,54 +1185,105 @@ function draw3D() {
     if (pts2D.some(p => !p)) continue;
     const mid2D = pts2D[Math.floor(pts2D.length / 2)];
     renderItems.push({
-      depth: mid2D[2], kind: "arc", pts: pts2D, arc
+      depth: mid2D[2], kind: "arc", pts: pts2D, arc,
+      hl: (V3.hoveredArc && V3.hoveredArc.arc === arc) || (V3.highlight && V3.highlight.toLowerCase().includes(arc.ability.toLowerCase()))
     });
   }
 
   // Back-to-front depth sorting
   renderItems.sort((a, b) => b.depth - a.depth);
 
-  // 5. Draw 3D Ballistic Trajectory Arcs
   const highestLineup = V3.lineups && V3.lineups.length ? V3.lineups[0] : null;
+  const anyFocused = renderItems.some(it => it.hl);
+  const now = Date.now();
 
-  for (const it of renderItems) {
+  // 7. Render 3D Ballistic Trajectory Arcs (Multi-Layer Luminous Ribbons)
+  for (let idx = 0; idx < renderItems.length; idx++) {
+    const it = renderItems[idx];
+
     if (it.kind === "lineup") {
-      // Golden exploit lineup curve
       const isTopLineup = (it.l === highestLineup);
       const isFocused = it.hl || isTopLineup;
 
-      ctx.strokeStyle = isFocused ? "#ffd166" : "rgba(255, 209, 102, 0.45)";
-      ctx.lineWidth = it.hl ? 4 : (isTopLineup ? 2.8 : 1.8);
-      ctx.globalAlpha = isFocused ? 0.95 : 0.6;
+      const baseAlpha = isFocused ? 0.95 : (anyFocused ? 0.20 : 0.65);
+      const strokeCol = isFocused ? "#ffd166" : "rgba(255, 209, 102, 0.45)";
+
+      // Pass 1: Volumetric Bloom Aura
+      ctx.lineWidth = isFocused ? 8.5 : 4.5;
+      ctx.strokeStyle = "rgba(255, 209, 102, 0.22)";
       ctx.beginPath();
       ctx.moveTo(it.pts[0][0], it.pts[0][1]);
       for (let i = 1; i < it.pts.length; i++) ctx.lineTo(it.pts[i][0], it.pts[i][1]);
       ctx.stroke();
 
-      // De-cluttered floating leader tag: ONLY draw for focused or top lineup
-      if (it.hl || (isTopLineup && it.l.repeats >= 20)) {
-        const s = it.pts[Math.floor(it.pts.length / 2)];
-        ctx.fillStyle = "rgba(4, 7, 17, 0.92)";
+      // Pass 2: Neon Core Laser
+      ctx.lineWidth = isFocused ? 3.0 : 1.8;
+      ctx.strokeStyle = strokeCol;
+      ctx.globalAlpha = baseAlpha;
+      ctx.beginPath();
+      ctx.moveTo(it.pts[0][0], it.pts[0][1]);
+      for (let i = 1; i < it.pts.length; i++) ctx.lineTo(it.pts[i][0], it.pts[i][1]);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // Pass 3: Animated Traveling Photon Energy Bead
+      const pulseT = ((now / 1500) + idx * 0.15) % 1.0;
+      const pulseIdx = Math.min(it.pts.length - 1, Math.floor(pulseT * (it.pts.length - 1)));
+      const pulsePt = it.pts[pulseIdx];
+      if (pulsePt) {
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath(); ctx.arc(pulsePt[0], pulsePt[1], 2.8, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = "#ffd166";
-        ctx.lineWidth = 1.2;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(pulsePt[0], pulsePt[1], 5.5, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      // CRITICAL FIX: Only draw badge for focused OR single #1 top exploit lineup
+      // Never stack multiple badges!
+      if (it.hl || (isTopLineup && it.l.repeats >= 15)) {
+        // Find apex point
+        let apexPt = it.pts[0];
+        for (const pt of it.pts) {
+          if (pt[1] < apexPt[1]) apexPt = pt;
+        }
+
         const badgeText = `★ ${it.l.ability.toUpperCase()} // ${it.l.repeats} ROUNDS [APEX ${it.l.trajectory.apex_m}m]`;
         ctx.font = "bold 10px 'JetBrains Mono', monospace";
         const tw = ctx.measureText(badgeText).width;
-        ctx.fillRect(s[0] - tw / 2 - 6, s[1] - 18, tw + 12, 16);
-        ctx.strokeRect(s[0] - tw / 2 - 6, s[1] - 18, tw + 12, 16);
+
+        // Angled tactical leader line above curve
+        const lx = apexPt[0] + 16, ly = apexPt[1] - 18;
+        ctx.strokeStyle = "#ffd166";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(apexPt[0], apexPt[1]);
+        ctx.lineTo(lx, ly);
+        ctx.lineTo(lx + tw + 14, ly);
+        ctx.stroke();
+
+        // Apex diamond marker
         ctx.fillStyle = "#ffd166";
-        ctx.textAlign = "center";
-        ctx.fillText(badgeText, s[0], s[1] - 6);
-        ctx.textAlign = "left";
+        ctx.beginPath();
+        ctx.arc(apexPt[0], apexPt[1], 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // HUD badge plate
+        ctx.fillStyle = "rgba(4, 7, 17, 0.94)";
+        ctx.fillRect(lx, ly - 16, tw + 14, 16);
+        ctx.strokeRect(lx, ly - 16, tw + 14, 16);
+
+        ctx.fillStyle = "#ffd166";
+        ctx.fillText(badgeText, lx + 7, ly - 4);
       }
-      ctx.globalAlpha = 1;
 
     } else if (it.kind === "arc") {
       const arc = it.arc;
       const col = CLASS_COLORS[arc.class] || CLASS_COLORS.other;
-      const isHighlightedArc = V3.highlight && V3.highlight.toLowerCase().includes(arc.ability.toLowerCase());
+      const isFocused = it.hl;
 
-      // Laser vertical drop-line from apex down to floor
+      const baseAlpha = isFocused ? 1.0 : (anyFocused ? 0.22 : 0.68);
+
+      // Apex and ground plumb-line
       const apexIdx = Math.floor(it.pts.length / 2);
       const apex2D = it.pts[apexIdx];
       const apexWorld = arc.curvePts[apexIdx];
@@ -1169,27 +1291,60 @@ function draw3D() {
 
       if (floor2D && apex2D) {
         // Floor shadow ellipse
-        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
         ctx.beginPath();
-        ctx.ellipse(floor2D[0], floor2D[1], 6, 3, 0, 0, Math.PI * 2);
+        ctx.ellipse(floor2D[0], floor2D[1], 7, 3.5, 0, 0, Math.PI * 2);
         ctx.fill();
 
         // Vertical drop-line
-        ctx.strokeStyle = isHighlightedArc ? "rgba(0, 210, 255, 0.6)" : "rgba(255, 255, 255, 0.12)";
-        ctx.lineWidth = isHighlightedArc ? 1.5 : 0.8;
+        ctx.strokeStyle = isFocused ? "rgba(0, 210, 255, 0.7)" : "rgba(255, 255, 255, 0.12)";
+        ctx.lineWidth = isFocused ? 1.5 : 0.8;
         ctx.setLineDash([2, 3]);
         ctx.beginPath(); ctx.moveTo(apex2D[0], apex2D[1]); ctx.lineTo(floor2D[0], floor2D[1]); ctx.stroke();
         ctx.setLineDash([]);
       }
 
-      // Trajectory curve
+      // Pass 1: Volumetric Bloom Aura
+      ctx.lineWidth = isFocused ? 9.0 : 4.5;
       ctx.strokeStyle = col;
-      ctx.lineWidth = isHighlightedArc ? 3.5 : 1.6;
-      ctx.globalAlpha = isHighlightedArc ? 1.0 : 0.65;
+      ctx.globalAlpha = isFocused ? 0.35 : 0.12;
       ctx.beginPath();
       ctx.moveTo(it.pts[0][0], it.pts[0][1]);
       for (let i = 1; i < it.pts.length; i++) ctx.lineTo(it.pts[i][0], it.pts[i][1]);
       ctx.stroke();
+
+      // Pass 2: Neon Laser Core
+      ctx.lineWidth = isFocused ? 3.0 : 1.7;
+      ctx.strokeStyle = col;
+      ctx.globalAlpha = baseAlpha;
+      ctx.beginPath();
+      ctx.moveTo(it.pts[0][0], it.pts[0][1]);
+      for (let i = 1; i < it.pts.length; i++) ctx.lineTo(it.pts[i][0], it.pts[i][1]);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // Pass 3: Animated Traveling Photon Energy Pulse
+      const pulseT = ((now / 1600) + idx * 0.14) % 1.0;
+      const pulseIdx = Math.min(it.pts.length - 1, Math.floor(pulseT * (it.pts.length - 1)));
+      const pulsePt = it.pts[pulseIdx];
+      if (pulsePt) {
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath(); ctx.arc(pulsePt[0], pulsePt[1], 2.4, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(pulsePt[0], pulsePt[1], 4.8, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      // Pass 4: Ground Impact Shockwave
+      const endPt = it.pts[it.pts.length - 1];
+      const ripplePhase = ((now / 1100) + idx * 0.18) % 1.0;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.2;
+      ctx.globalAlpha = (1 - ripplePhase) * (isFocused ? 0.8 : 0.45);
+      ctx.beginPath();
+      ctx.ellipse(endPt[0], endPt[1], 3 + ripplePhase * 12, 1.5 + ripplePhase * 6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
 
       // Caster origin blip (eye level)
       const startPt = it.pts[0];
@@ -1197,32 +1352,35 @@ function draw3D() {
       ctx.beginPath(); ctx.arc(startPt[0], startPt[1], 2.5, 0, Math.PI * 2); ctx.fill();
 
       // Landing ground blip
-      const endPt = it.pts[it.pts.length - 1];
       ctx.fillStyle = col;
       ctx.beginPath(); ctx.arc(endPt[0], endPt[1], 3.5, 0, Math.PI * 2); ctx.fill();
 
-      // Only draw floating tag if explicitly highlighted
-      if (isHighlightedArc) {
-        ctx.fillStyle = "rgba(4, 7, 17, 0.9)";
-        ctx.strokeStyle = col;
-        ctx.lineWidth = 1;
-        const tagText = `${arc.ability.toUpperCase()} // ${Math.round(arc.apex_h)}m`;
+      // Clean single floating tag if highlighted
+      if (isFocused) {
+        const lx = apex2D[0] + 14, ly = apex2D[1] - 16;
+        const tagText = `${arc.ability.toUpperCase()} // ${Math.round(arc.apex_h)}m APEX [${Math.round(arc.dist_m || 20)}m RANGE]`;
         ctx.font = "bold 9px 'JetBrains Mono', monospace";
         const tw = ctx.measureText(tagText).width;
-        ctx.fillRect(apex2D[0] - tw / 2 - 4, apex2D[1] - 14, tw + 8, 13);
-        ctx.strokeRect(apex2D[0] - tw / 2 - 4, apex2D[1] - 14, tw + 8, 13);
+
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(apex2D[0], apex2D[1]);
+        ctx.lineTo(lx, ly);
+        ctx.lineTo(lx + tw + 12, ly);
+        ctx.stroke();
+
+        ctx.fillStyle = "rgba(4, 7, 17, 0.94)";
+        ctx.fillRect(lx, ly - 14, tw + 12, 14);
+        ctx.strokeRect(lx, ly - 14, tw + 12, 14);
 
         ctx.fillStyle = "#ffffff";
-        ctx.textAlign = "center";
-        ctx.fillText(tagText, apex2D[0], apex2D[1] - 4);
-        ctx.textAlign = "left";
+        ctx.fillText(tagText, lx + 6, ly - 3);
       }
-
-      ctx.globalAlpha = 1;
     }
   }
 
-  // 6. Empty-state HUD plate if no trajectories match active filters
+  // 8. Empty-State HUD Plate
   if (!renderItems.length) {
     const cx = W / 2, cy = H / 2;
     ctx.save();
@@ -1244,10 +1402,16 @@ function draw3D() {
     ctx.restore();
   }
 
-  // 7. Tactical HUD Canvas Header
-  ctx.fillStyle = "rgba(0, 210, 255, 0.7)";
-  ctx.font = "bold 10px 'JetBrains Mono', monospace";
+  // 9. Tactical HUD Header & Orientation Indicator
+  ctx.fillStyle = "rgba(0, 210, 255, 0.85)";
+  ctx.font = "bold 11px 'JetBrains Mono', monospace";
   ctx.fillText(`3D PERSPECTIVE FLIGHT ARENA // ${(V3.map || "SPLIT").toUpperCase()} // ${V3.arcs.length} FLIGHT ARCS`, 16, 22);
+
+  ctx.fillStyle = "rgba(148, 163, 184, 0.6)";
+  ctx.font = "9px 'JetBrains Mono', monospace";
+  const degPitch = Math.round(V3.pitch * 180 / Math.PI);
+  const degYaw = Math.round((V3.yaw % (Math.PI * 2)) * 180 / Math.PI);
+  ctx.fillText(`CAM PITCH: ${degPitch}° · YAW: ${degYaw}° · DIST: ${Math.round(V3.dist)}m`, 16, 36);
 }
 
 function v3Loop() {
@@ -1259,20 +1423,55 @@ function v3Loop() {
 function v3Controls() {
   const canvas = $("traj3d");
   if (!canvas) return;
+
   canvas.addEventListener("pointerdown", (e) => {
     V3.dragging = true; V3.auto = false; v3AutoLabel();
     canvas.setPointerCapture(e.pointerId);
   });
+
   canvas.addEventListener("pointermove", (e) => {
     if (!V3.dragging) return;
     V3.yaw += e.movementX * 0.006;
-    V3.pitch = Math.max(0.08, Math.min(1.30, V3.pitch + e.movementY * 0.004));
+    V3.pitch = Math.max(0.12, Math.min(1.30, V3.pitch + e.movementY * 0.004));
   });
+
   canvas.addEventListener("pointerup", () => { V3.dragging = false; });
+
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
     V3.dist = Math.max(70, Math.min(460, V3.dist * (1 + e.deltaY * 0.0012)));
   }, { passive: false });
+
+  // Interactive 3D Arc Hover Hit-Testing
+  canvas.addEventListener("mousemove", (e) => {
+    if (V3.dragging) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    let found = null;
+    let bestDist = 14;
+
+    // Check arcs
+    for (const arc of (V3.arcs || [])) {
+      for (const pt of arc.curvePts) {
+        const p2d = V3.project(pt[0], pt[1], pt[2], canvas.width, canvas.height);
+        if (p2d) {
+          const d = Math.hypot(p2d[0] - mx, p2d[1] - my);
+          if (d < bestDist) {
+            bestDist = d;
+            found = { arc };
+          }
+        }
+      }
+    }
+
+    V3.hoveredArc = found;
+  });
+
+  canvas.addEventListener("mouseleave", () => {
+    V3.hoveredArc = null;
+  });
 
   const setViewPreset = (yaw, pitch, dist, btnId) => {
     V3.yaw = yaw;
@@ -1280,20 +1479,22 @@ function v3Controls() {
     V3.dist = dist;
     V3.auto = false;
     v3AutoLabel();
-    ["v3-topdown", "v3-iso", "v3-retake"].forEach(id => {
+    ["v3-stadium", "v3-iso", "v3-overhead"].forEach(id => {
       const b = $(id);
       if (b) b.classList.toggle("active", id === btnId);
     });
   };
 
-  if ($("v3-topdown")) $("v3-topdown").addEventListener("click", () => setViewPreset(0.05, 1.22, 175, "v3-topdown"));
-  if ($("v3-iso")) $("v3-iso").addEventListener("click", () => setViewPreset(0.75, 0.65, 185, "v3-iso"));
-  if ($("v3-retake")) $("v3-retake").addEventListener("click", () => setViewPreset(0.10, 0.28, 195, "v3-retake"));
+  // Wire Preset Buttons: Stadium 3D, Isometric, Overhead
+  if ($("v3-stadium")) $("v3-stadium").addEventListener("click", () => setViewPreset(0.45, 0.48, 145, "v3-stadium"));
+  if ($("v3-iso")) $("v3-iso").addEventListener("click", () => setViewPreset(0.78, 0.62, 160, "v3-iso"));
+  if ($("v3-overhead")) $("v3-overhead").addEventListener("click", () => setViewPreset(0.05, 1.18, 175, "v3-overhead"));
 
-  $("v3-auto").addEventListener("click", () => { V3.auto = !V3.auto; v3AutoLabel(); });
-  $("v3-reset").addEventListener("click", () => {
-    setViewPreset(0.05, 1.22, 175, "v3-topdown");
+  if ($("v3-auto")) $("v3-auto").addEventListener("click", () => { V3.auto = !V3.auto; v3AutoLabel(); });
+  if ($("v3-reset")) $("v3-reset").addEventListener("click", () => {
+    setViewPreset(0.45, 0.48, 145, "v3-stadium");
   });
+
   if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     V3.auto = false;
   }
@@ -1301,7 +1502,8 @@ function v3Controls() {
 }
 
 function v3AutoLabel() {
-  $("v3-auto").textContent = V3.auto ? "⏸ ORBIT" : "▶ ORBIT";
+  const btn = $("v3-auto");
+  if (btn) btn.textContent = V3.auto ? "⏸ ORBIT" : "▶ ORBIT";
 }
 
 /* ---------------- Evidence & Intelligence Panels ---------------- */
