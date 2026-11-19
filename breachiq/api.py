@@ -33,12 +33,17 @@ def _data() -> dict:
     return fixtures.load_fixtures(FIXTURES)
 
 
-def _atlas(data: dict, map_name: str) -> dict:
+def _atlas(data: dict, map_name: str, side: str = "all",
+           ability: str = "") -> dict:
     atlas = features.UtilityAtlas()
     by_round: dict[int, list[dict]] = {}
     points: list[dict] = []
     for cast in data["casts"]:
         if cast["map"] != map_name:
+            continue
+        if side in ("attacker", "defender") and cast.get("side") != side:
+            continue
+        if ability and cast.get("ability") != ability:
             continue
         state = spatial.cast_state(cast)
         if state is None:
@@ -60,6 +65,7 @@ def _atlas(data: dict, map_name: str) -> dict:
                           coverage="synthetic demo corpus; official exclusions: series 2855902, "
                                    "Bind in 2855906, Split in 2877148, Abyss/Split merged in 2890334/2890361")
     result["points"] = points
+    result["map_selected"] = map_name
     return result
 
 
@@ -75,10 +81,14 @@ def meta() -> dict:
 
 
 @app.get("/api/atlas")
-def atlas(map: str = Query(..., description="map name")) -> dict:
+def atlas(map: str = Query(..., description="map name"),
+          side: str = Query("all", description="all | attacker | defender"),
+          ability: str = Query("", description="exact ability id filter")) -> dict:
     if map not in spatial.BOUNDS:
         raise HTTPException(404, f"unknown map: {map}")
-    return _atlas(_data(), map)
+    if side not in ("all", "attacker", "defender"):
+        raise HTTPException(422, f"invalid side: {side}")
+    return _atlas(_data(), map, side=side, ability=ability)
 
 
 @app.get("/api/operator")

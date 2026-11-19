@@ -14,21 +14,15 @@
     <span class="badge estimate">landing zones = estimates</span>
     <div id="filters" aria-label="filter rail">
       <label>map <select id="f-map"></select></label>
-      <label>side <select id="f-side"><option>all</option><option>attack</option><option>defense</option></select></label>
-      <label>patch <select id="f-patch"><option>all</option><option>11.08</option></select></label>
-      <label>ability <select id="f-ability"><option>all</option></select></label>
+      <label>side <select id="f-side"><option value="all">all</option><option value="attacker">attack</option><option value="defender">defense</option></select></label>
+      <label>ability <select id="f-ability"><option value="">all</option></select></label>
     </div>
     <span style="flex:1"></span>
     <button class="ghost" id="btn-refresh">refresh (r)</button>
     <button id="btn-brief">export brief (PDF)</button>
   </header>
 
-  <div id="demo-banner" class="hidden">
-    <b>Static demo</b> · SYNTHETIC data (no GRID data is redistributed) ·
-    the full API + real-corpus pipeline run locally — see the
-    <a href="https://github.com/mir-ashiq/breachiq3d" target="_blank" rel="noopener">README</a>
-    · real-data findings: <a href="https://github.com/mir-ashiq/breachiq3d/blob/main/docs/FINDINGS.md" target="_blank" rel="noopener">docs/FINDINGS.md</a>
-  </div>
+  <div id="demo-banner" class="hidden"></div>
 
   <main>
     <div class="card" id="map-card">
@@ -63,15 +57,15 @@
     </div>
 
     <div class="card" id="pacing-card">
-      <h2>Site-execute pacing &amp; economy collapse</h2>
+      <h2>Pacing &amp; round outcomes</h2>
       <div id="pacing" class="rows"><div class="state">loading…</div></div>
     </div>
   </main>
 
   <footer>
-    BreachIQ 3D · Cloud9 × JetBrains Sky's The Limit 2026 · demo runs on
-    SYNTHETIC data (no GRID data is redistributed) · every landing zone is a
-    labeled raycast estimate
+    BreachIQ 3D · Cloud9 × JetBrains Sky's The Limit 2026 ·
+    <span id="footer-data-note">demo runs on SYNTHETIC data (no GRID data is redistributed)</span> ·
+    every landing zone is a labeled raycast estimate
   </footer>
 </div>
 

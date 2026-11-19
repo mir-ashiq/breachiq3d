@@ -35,6 +35,27 @@ def test_atlas_404_on_unknown_map():
     assert client.get("/api/atlas", params={"map": "nokia"}).status_code == 404
 
 
+def test_atlas_side_and_ability_filters():
+    """The side/ability filter rail must actually filter (an earlier
+    version shipped decorative selects - the red team's finding)."""
+    base = client.get("/api/atlas", params={"map": "split"}).json()
+    atk = client.get("/api/atlas", params={"map": "split", "side": "attacker"}).json()
+    assert atk["rounds"] == base["rounds"]          # rounds don't change
+    assert atk != base or True                      # shapes may match; counts below
+    total_base = sum(sum(a["zones"].values()) for a in base["abilities"])
+    total_atk = sum(sum(a["zones"].values()) for a in atk["abilities"])
+    total_def = sum(sum(a["zones"].values()) for a in
+                    client.get("/api/atlas", params={"map": "split",
+                                                     "side": "defender"}).json()["abilities"])
+    assert total_atk + total_def == total_base, "side split must partition the casts"
+    # ability filter narrows to a single ability
+    ab = base["abilities"][0]["ability"]
+    one = client.get("/api/atlas", params={"map": "split", "ability": ab}).json()
+    assert [a["ability"] for a in one["abilities"]] == [ab]
+    assert client.get("/api/atlas", params={"map": "split",
+                                            "side": "nokia"}).status_code == 422
+
+
 def test_operator_fingerprint():
     r = client.get("/api/operator")
     assert r.status_code == 200

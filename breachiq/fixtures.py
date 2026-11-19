@@ -43,6 +43,8 @@ def generate_series(seed: int = 7, n_rounds: int = 40) -> dict:
         site = str(rng.choice(["a", "b", "mid"]))
         economy = str(rng.choice(["full", "full", "eco", "eco", "force"]))
         quality = "ok"
+        # sides swap at halftime (12-round halves), like real VALORANT
+        side = "attacker" if (r // 12) % 2 == 0 else "defender"
         # deterministic Operator purchases: seeded per-player bias, so the
         # API's operator view is stable across calls (no live randomness)
         operator_buyers = [p for p in PLAYERS if rng.random() < op_bias[p]]
@@ -82,6 +84,7 @@ def generate_series(seed: int = 7, n_rounds: int = 40) -> dict:
                     ["cypher-trapwire", "killjoy-alarmbot", "sova-reconbolt",
                      "brimstone-smoke", "sage-wall", "chamber-trap", "omen-smoke"])),
                 "map": MAPS[r % len(MAPS)], "site": site, "round": r,
+                "side": side,
                 "frame_before": fb, "frame_after": fa, "quality": quality,
             })
         # deliberate set play: every 4th round Echo casts sage-wall from
@@ -97,7 +100,7 @@ def generate_series(seed: int = 7, n_rounds: int = 40) -> dict:
                 "in_grid": True,
                 "occurred_at": f"2026-11-{(r % 28) + 1:02d}T12:05:00Z",
                 "player_id": "Echo", "ability": "sage-wall",
-                "map": "split", "site": site, "round": r,
+                "map": "split", "site": site, "round": r, "side": side,
                 "frame_before": _frame(rng, -180, pos, view, vel),
                 "frame_after": _frame(rng, 180, pos, view, vel),
                 "quality": "ok",

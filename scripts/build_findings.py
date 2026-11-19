@@ -35,6 +35,9 @@ def main() -> None:
     ap.add_argument("--team", default="Cloud9")
     ap.add_argument("--limit", type=int, default=0, help="only first N series")
     ap.add_argument("--out", default=str(REPO / "docs" / "FINDINGS.md"))
+    ap.add_argument("--demo-out", default=str(REPO / "web" / "demo-data.json"),
+                    help="also write the real-aggregate demo snapshot "
+                         "(license-safe: aggregate results only)")
     args = ap.parse_args()
 
     corpus = Corpus()
@@ -46,6 +49,15 @@ def main() -> None:
     # aggregation state
     bounds_by_map: dict[str, dict] = {}
     atlas = features.UtilityAtlas(class_resolver=ability_class)
+    # per-map, per-side atlases + cast-density bins for the live demo
+    def _side_dict():
+        return {s: features.UtilityAtlas(class_resolver=ability_class)
+                for s in ("all", "attacker", "defender")}
+    atlas_by_map_side: dict[str, dict] = collections.defaultdict(_side_dict)
+    DENSITY_BINS = 40
+    density: dict[str, dict[str, dict[tuple[int, int], int]]] = \
+        collections.defaultdict(lambda: {"all": {}, "attacker": {}, "defender": {}})
+    rounds_by_map: collections.Counter = collections.Counter()
     lineups = features.LineupDetector()
     op_fp = features.OperatorFingerprint()
     outcomes = features.RoundOutcomes()
@@ -112,8 +124,15 @@ def main() -> None:
                 cast_t = None
             casts_by_round[(c["game_id"], c["round_no"])].append({
                 "u": u, "v": v, "ability": c["ability"], "quality": c["quality"],
-                "t": cast_t,
+                "t": cast_t, "side": c["side"],
             })
+            # density bins (aggregate 2D histogram of cast positions)
+            if c["side"] in ("attacker", "defender"):
+                bin_uv = (min(int(u * DENSITY_BINS), DENSITY_BINS - 1),
+                          min(int(v * DENSITY_BINS), DENSITY_BINS - 1))
+                d = density[c["map"]]
+                for k in ("all", c["side"]):
+                    d[k][bin_uv] = d[k].get(bin_uv, 0) + 1
             if c["view"]:
                 lineups.add(ability=c["ability"], map=c["map"],
                             position=c["position"], view=c["view"],
@@ -130,6 +149,11 @@ def main() -> None:
             side = None
             for fn in focus_names:
                 side = r["sides_by_team"].get(fn) or side
+            rounds_by_map[r["map"]] += 1
+            m_sides = atlas_by_map_side[r["map"]]
+            m_sides["all"].add_round(casts, patch="")
+            if side in ("attacker", "defender"):
+                m_sides[side].add_round(casts, patch="")
             won = any(r["winner_team"] == fn for fn in focus_names)
             outcomes.add_round(round_no=r["round_no"], side=side or "unknown",
                                won=bool(won), win_type=r["win_type"],
@@ -308,6 +332,73 @@ def main() -> None:
     for m, b in sorted(bounds_by_map.items()):
         print(f"  {m}: x [{b['min']['x']}, {b['max']['x']}], "
               f"y [{b['min']['y']}, {b['max']['y']}]")
+
+    # ---------------- write the real-aggregate demo snapshot
+    if args.demo_out:
+        def with_uv(l: dict) -> dict:
+            b = bounds_by_map.get(l["map"])
+            if b and "position" in l:
+                u, v = spatial.normalize_position(
+                    l["position"], spatial.MapBounds(
+                        b["min"]["x"], b["max"]["x"],
+                        b["min"]["y"], b["max"]["y"]))
+                l = {**l, "u": round(u, 4), "v": round(v, 4)}
+            return l
+
+        demo_atlas: dict[str, dict] = {}
+        for m, sides in atlas_by_map_side.items():
+            demo_atlas[m] = {
+                "rounds": rounds_by_map.get(m, 0),
+                "sides": {
+                    sk: {
+                        **sr.result(matches=games_count,
+                                    coverage=f"real GRID corpus, {args.team} "
+                                             f"series ({sk})"),
+                        "density": [
+                            [round((bx + 0.5) / DENSITY_BINS, 4),
+                             round((by + 0.5) / DENSITY_BINS, 4), n]
+                            for (bx, by), n in
+                            sorted(density.get(m, {}).get(sk, {}).items(),
+                                   key=lambda kv: -kv[1]) if n >= 2],
+                    } for sk, sr in sides.items()
+                },
+            }
+        demo = {
+            "REAL": True,
+            "SYNTHETIC": False,
+            "team": args.team,
+            "source": ("aggregates from the official GRID starter corpus "
+                       f"({len(matches_by_series)} {args.team} series, "
+                       "VCT Americas + Game Changers 2025-26); reproducible "
+                       "via `make findings`; aggregate results only - no raw "
+                       "data is redistributed (license)"),
+            "meta": {"maps": sorted(maps_played), "SYNTHETIC": False},
+            "coverage": {
+                "series": len(matches_by_series), "games": games_count,
+                "rounds": total_rounds, "casts": total_casts,
+                "ok_rate": round(ok_share, 4),
+                "quality_mix": dict(quality_mix),
+                "patches": [p for p, _ in patches.most_common()],
+                "rolled_back_games": len(exclusion_hits),
+                "exclusions_note": ("series 2855902 invalidated; Bind 2855906; "
+                                    "Split 2877148; merged Abyss/Split "
+                                    "2890334/2890361 (officially excluded)"),
+            },
+            "atlas": demo_atlas,
+            "lineups": {"lineups": [with_uv(l) for l in lineup_result[:20]],
+                        "data": "real GRID corpus aggregates"},
+            "operator": {**op_result,
+                         "op_rounds": op_rounds,
+                         "op_first_kills": op_first_kills,
+                         "op_holder_died_first": op_holder_died_first},
+            "pacing": pacing_result,
+            "outcomes": outcomes_result,
+        }
+        demo_path = Path(args.demo_out)
+        demo_path.write_text(json.dumps(demo))
+        print(f"wrote {demo_path} ({demo_path.stat().st_size} bytes, "
+              f"{len(demo_atlas)} maps, "
+              f"{len(demo['lineups']['lineups'])} lineups)")
 
 
 if __name__ == "__main__":

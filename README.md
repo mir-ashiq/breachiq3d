@@ -9,7 +9,7 @@ Category 1 · Cloud9 × JetBrains *Sky's The Limit* Hackathon 2026
 [![CI](https://github.com/mir-ashiq/breachiq3d/actions/workflows/ci.yml/badge.svg)](https://github.com/mir-ashiq/breachiq3d/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-`tests: 50 passed` · `python 3.12` · `no build step` · live demo: **https://mir-ashiq.github.io/breachiq3d/** (SYNTHETIC snapshot)
+`tests: 51 passed` · `python 3.12` · `no build step` · live demo: **https://mir-ashiq.github.io/breachiq3d/** (REAL corpus aggregates)
 
 </div>
 
@@ -58,14 +58,19 @@ Full detail: [docs/FINDINGS.md](docs/FINDINGS.md).
 ```bash
 make setup          # venv + pinned deps + pre-push data guard
 make demo           # http://127.0.0.1:8000/app  (dark tactical dashboard)
-make test           # pytest suite (41 tests)
+make test           # pytest suite (51 tests)
 make verify         # benchmark + coverage + render smoke check
 make audit          # data-leak audit (CI runs the same check)
 ```
 
-The demo boots on **SYNTHETIC fixtures** — no GRID data is redistributed in
-this repo, ever (see `docs/COMPLIANCE.md`). To run against the official
-corpus (real findings, ~15 min on a laptop):
+The **live demo shows REAL aggregate findings** from the official GRID
+corpus (per-map/per-side utility atlases, cast-density heat, repeated
+lineups, Operator profile, pacing, outcomes) — license-safe: aggregate
+results only, no raw data is redistributed in this repo, ever (see
+`docs/COMPLIANCE.md`). The local API (`make demo`) serves **SYNTHETIC
+fixtures** in the same schema so you can develop and test without the
+corpus. To rebuild the real findings and the demo snapshot (~15 min on a
+laptop):
 
 ```bash
 git clone https://github.com/cloud9esports/stl-hackathon-2026-grid-starter.git ../grid-data
