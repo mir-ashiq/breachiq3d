@@ -89,6 +89,7 @@ orchestration), and Junie sessions — evidence committed from day 1 in
 - [docs/ROADMAP.md](docs/ROADMAP.md) — verified dates, feature freeze, capacity gate
 - [docs/COMPLIANCE.md](docs/COMPLIANCE.md) — data license, judge access, eligibility
 - [docs/DATA_USAGE.md](docs/DATA_USAGE.md) — accounting of how every provided resource is used
+- [docs/COMPETITOR_DOSSIER_RESPONSE.md](docs/COMPETITOR_DOSSIER_RESPONSE.md) — response to the 2026-11-19 rival-recon dossier (2 live Cat-1 rivals, gap validation)
 - [docs/100_REASONS.md](docs/100_REASONS.md) — the red-team audit and its fixes
 - [docs/VIDEO_STORYBOARD.md](docs/VIDEO_STORYBOARD.md) — 165 s demo video plan
 - [docs/DEVPOST_SUBMISSION.md](docs/DEVPOST_SUBMISSION.md) — submission draft + rehearsal

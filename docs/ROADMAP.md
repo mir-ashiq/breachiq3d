@@ -27,6 +27,11 @@ stay live through **Feb 3, 2027**; winners announced on or around **Feb 8**.
 - [ ] Filter rail: team, map, player, agent, composition, patch, side,
       weapon, ability (the brief's full list)
 - [ ] Trajectory overlays, layer toggles, keyboard shortcut polish
+- [ ] Stretch (cost-boxed 2 days, only if above is green): small JetBrains
+      integration — Junie run-book commands or a PyCharm/IDEA tool window
+      that opens a series' evidence report (dossier gap: no rival ships a
+      real IDE integration; sponsor-scoring advantage — see
+      COMPETITOR_DOSSIER_RESPONSE.md)
 
 ## Week 4 (Dec 8–14): office hours + vertical slice
 
