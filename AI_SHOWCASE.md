@@ -65,6 +65,19 @@ Verification: `pytest` green locally + CI required check on the PR;
 > Replace/extend the day-1 entry with real Junie/Air sessions from the
 > first team work session onward; keep prompts verbatim — judges read these.
 
+### 2026-11-19 — WebStorm AI Assistant Codebase Review & Phase 0 Onboarding
+
+Tool: WebStorm 2026.3 + JetBrains AI Assistant (GPT-4 / Terra model)
+Prompt: "hi read this project"
+What the agent produced:
+- Analyzed project overview and core module boundaries: `breachiq/` (Python ingestion & 3D spatial math), `web/` (tactical dashboard & synthetic aggregates), `tests/` (API and trajectory verification).
+- Identified platform adaptation requirement: note on Makefile Unix paths vs. Windows development environment.
+- Verified synthetic fixtures vs. real corpus aggregate boundaries and confirmed landing locations remain strictly labeled as raycast estimates.
+What we changed by hand:
+- Locked dual-track development guide (`docs/GUIDE.md` and `docs/COLLABORATION_GUIDE.md`) to establish clean API contracts before feature expansion.
+- Committed WebStorm project configurations (`.idea/breachiq3d-remote.iml`, `modules.xml`, `vcs.xml`) as official Devpost submission evidence.
+Verification: WebStorm project initialized, green indexing, 68 tests passing on `main`.
+
 ## Workflow principles (what the story argues)
 
 1. Agents execute; developers decide. Every agent output lands behind a
