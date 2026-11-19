@@ -29,7 +29,7 @@ const CLASS_COLORS = {
   other: "#94a3b8"      // Miscellaneous utility
 };
 
-const layers = { placeable: true, recon: true, smoke: true, stall: true, flash: true };
+const layers = { smoke: true, recon: true, placeable: true, stall: true, flash: true, density: false };
 const HOLD = { player: null };
 
 function abilityClass(a) {
@@ -342,26 +342,28 @@ function drawMinimap(atlas, lineups, bounds) {
   // 2. Draw Radar Sweep Beam
   drawRadarSweep(ctx, W, H);
 
-  // 3. Cast-Density Heatmap (Upscaled from density histogram)
+  // 3. Ambient Tactical Thermal Luminescence (Smooth Esports Gradient)
   const dens = atlas.density || [];
-  if (dens.length) {
+  if (layers.density && dens.length && (atlas.points || []).length > 0) {
     const maxD = Math.max(1, ...dens.map(d => d[2]));
-    const off = document.createElement("canvas");
-    off.width = off.height = 40;
-    const octx = off.getContext("2d");
+    ctx.save();
     for (const [u, v, n] of dens) {
-      octx.fillStyle = heatColor(n / maxD);
-      octx.globalAlpha = 0.45 + 0.5 * (n / maxD);
-      octx.fillRect(u * 40 - 1.5, v * 40 - 1.5, 3, 3);
+      const rx = u * W, ry = v * H;
+      const intensity = Math.min(1, n / maxD);
+      const rad = 24 + intensity * 24;
+      const g = ctx.createRadialGradient(rx, ry, 0, rx, ry, rad);
+      g.addColorStop(0, "rgba(0, 210, 255, 0.22)");
+      g.addColorStop(0.5, "rgba(37, 99, 235, 0.10)");
+      g.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(rx, ry, rad, 0, Math.PI * 2);
+      ctx.fill();
     }
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.globalAlpha = 0.85;
-    ctx.drawImage(off, 0, 0, W, H);
-    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
-  // 4. Ballistic Trajectory Arcs & Landing Blips
+  // 4. Ballistic Trajectory Arcs & Distinct Utility Signatures
   currentMinimapPoints = [];
   const points = atlas.points || [];
   if (!points.length) {
@@ -437,29 +439,137 @@ function drawMinimap(atlas, lineups, bounds) {
         }
       }
 
-      // Landing impact blip with outer pulse ring
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = col;
-      ctx.beginPath();
-      ctx.arc(endX, endY, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#080c14";
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      // Outer faint sonar ring
-      ctx.beginPath();
-      ctx.arc(endX, endY, 8, 0, Math.PI * 2);
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 1;
-      ctx.globalAlpha = 0.4;
-      ctx.stroke();
+      ctx.save();
       ctx.globalAlpha = 1;
 
+      // -------------------------------------------------------------
+      // DISTINCT UTILITY-CLASS GEOMETRY & AOE VISUALIZATION
+      // -------------------------------------------------------------
+      if (p.class === "smoke") {
+        // SMOKE: 5-meter vision denial dome with dashed border
+        const sRad = 22;
+        const sGrad = ctx.createRadialGradient(endX, endY, 2, endX, endY, sRad);
+        sGrad.addColorStop(0, "rgba(167, 139, 250, 0.45)");
+        sGrad.addColorStop(0.7, "rgba(167, 139, 250, 0.18)");
+        sGrad.addColorStop(1, "rgba(167, 139, 250, 0.0)");
+        ctx.fillStyle = sGrad;
+        ctx.beginPath();
+        ctx.arc(endX, endY, sRad, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = "#a78bfa";
+        ctx.lineWidth = 1.4;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.arc(endX, endY, sRad, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Core Smoke Blip
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(endX, endY, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#a78bfa";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+      } else if (p.class === "recon") {
+        // RECON: Dual Concentric Sonar Pulse Rings
+        const pingRad = 14 + (Math.sin(radarAngle * 3.5) + 1) * 5;
+        ctx.strokeStyle = "rgba(0, 210, 255, 0.6)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(endX, endY, pingRad, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(0, 210, 255, 0.25)";
+        ctx.beginPath();
+        ctx.arc(endX, endY, pingRad + 10, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Cyan Diamond Crosshair Reticle
+        ctx.fillStyle = "#00d2ff";
+        ctx.beginPath();
+        ctx.moveTo(endX, endY - 6);
+        ctx.lineTo(endX + 6, endY);
+        ctx.lineTo(endX, endY + 6);
+        ctx.lineTo(endX - 6, endY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(endX, endY, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+      } else if (p.class === "placeable") {
+        // PLACEABLE: Trapwire / Turret Diamond Hazard Box
+        const sz = 7;
+        ctx.fillStyle = "rgba(255, 209, 102, 0.28)";
+        ctx.fillRect(endX - sz, endY - sz, sz * 2, sz * 2);
+        ctx.strokeStyle = "#ffd166";
+        ctx.lineWidth = 1.8;
+        ctx.strokeRect(endX - sz, endY - sz, sz * 2, sz * 2);
+
+        // Core trap pip
+        ctx.fillStyle = "#ffd166";
+        ctx.beginPath();
+        ctx.arc(endX, endY, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+      } else if (p.class === "stall") {
+        // STALL: Area-of-Denial Molotov / Wall Zone
+        ctx.fillStyle = "rgba(255, 70, 85, 0.25)";
+        ctx.beginPath();
+        ctx.arc(endX, endY, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#ff4655";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        // Crimson Hazard Triangle
+        ctx.fillStyle = "#ff4655";
+        ctx.beginPath();
+        ctx.moveTo(endX, endY - 6);
+        ctx.lineTo(endX + 6, endY + 4);
+        ctx.lineTo(endX - 6, endY + 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(endX, endY, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+
+      } else if (p.class === "flash") {
+        // FLASH: 8-Ray Radiating Starburst
+        ctx.strokeStyle = "rgba(255, 123, 0, 0.8)";
+        ctx.lineWidth = 1.5;
+        for (let a = 0; a < 8; a++) {
+          const ang = a * Math.PI / 4;
+          ctx.beginPath();
+          ctx.moveTo(endX + Math.cos(ang) * 3, endY + Math.sin(ang) * 3);
+          ctx.lineTo(endX + Math.cos(ang) * 11, endY + Math.sin(ang) * 11);
+          ctx.stroke();
+        }
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(endX, endY, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+
+      } else {
+        // Standard tactical dot
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(endX, endY, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+
       currentMinimapPoints.push({
-        x: endX, y: endY, r: 10,
-        label: `${p.ability.toUpperCase()} [${p.class || "utility"}]`,
-        sub: `Caster: ${p.player || "Unknown"} · Round: #${p.round ?? "N/A"} · Quality: ${p.quality}`,
+        x: endX, y: endY, r: 12,
+        label: `${p.ability.toUpperCase()} [${(p.class || "utility").toUpperCase()}]`,
+        sub: `Caster: ${p.player || "Unknown"} (${(p.agent || "Agent").toUpperCase()}) · Round: #${p.round ?? "N/A"}`,
         extra: p.azimuth != null ? `Aim Azimuth: ${p.azimuth}° · Pitch: ${p.pitch}°` : null
       });
     }
@@ -611,40 +721,71 @@ function radarLoop() {
   requestAnimationFrame(radarLoop);
 }
 
-/* ---------------- 3D Trajectory Orbit Viewer ---------------- */
-function buildTerrain(atlas) {
-  const N = 40, grid = new Array(N * N).fill(0);
-  let max = 0;
-  const dens = (atlas.density && atlas.density.length)
-    ? atlas.density
-    : (atlas.points || []).map(p => [p.u, p.v, 1]);
-  for (const [u, v, n] of dens) {
-    const bx = Math.min(N - 1, Math.max(0, Math.floor(u * N)));
-    const by = Math.min(N - 1, Math.max(0, Math.floor(v * N)));
-    grid[by * N + bx] += n;
-  }
-  for (const g of grid) if (g > max) max = g;
-  return { grid, max, n: N };
-}
-
+/* ---------------- 3D Trajectory Orbit Viewer (Holographic Arena) ---------------- */
 const V3 = {
-  yaw: 0.8, pitch: 0.42, dist: 185, auto: true, highlight: null,
-  terrain: null, lineups: [], bounds: { w: 110, h: 120 }, map: "",
-  visible: true, dragging: false, MAXH: 15,
+  yaw: 0.85, pitch: 0.44, dist: 180, auto: true, highlight: null,
+  lineups: [], arcs: [], bounds: { w: 110, h: 120 }, map: "",
+  visible: true, dragging: false,
 
   setMap(map, bounds, atlas, lineups) {
-    this.map = map;
-    this.bounds = bounds;
-    this.terrain = buildTerrain(atlas);
+    this.map = map || "split";
+    this.bounds = bounds || { w: 110, h: 120 };
     this.lineups = (lineups || []).filter(l => l.map === map && l.trajectory);
+
+    // Ingest all active casts and build 3D parabolic flight curves
+    this.arcs = [];
+    const pts = (atlas && atlas.points) ? atlas.points : [];
+    const abilityFilter = $("f-ability") ? $("f-ability").value : "";
+
+    // Sample up to 60 prominent casts to maintain 60 FPS
+    const sample = pts.filter(p => !abilityFilter || p.ability === abilityFilter).slice(0, 60);
+
+    for (const p of sample) {
+      if (layers[p.class] === false) continue;
+      const u0 = (p.u0 !== undefined) ? p.u0 : p.u;
+      const v0 = (p.v0 !== undefined) ? p.v0 : p.v;
+      const u1 = p.u;
+      const v1 = p.v;
+
+      const pStart = this.toWorld(u0, v0, 1.8); // Caster eye level (1.8m)
+      const pEnd = this.toWorld(u1, v1, 0.0);   // Ground impact (0m)
+
+      const dist_m = Math.hypot(pEnd[0] - pStart[0], pEnd[1] - pStart[1]);
+      const pitchRad = Math.abs(p.pitch || 25) * Math.PI / 180;
+      const apex_h = Math.max(3.5, Math.min(32.0, dist_m * 0.36 + Math.sin(pitchRad) * 14));
+
+      // Generate 16 sample coordinates along parabolic flight path
+      const curvePts = [];
+      const N_SAMPLES = 16;
+      for (let s = 0; s <= N_SAMPLES; s++) {
+        const t = s / N_SAMPLES;
+        const x = pStart[0] + (pEnd[0] - pStart[0]) * t;
+        const y = pStart[1] + (pEnd[1] - pStart[1]) * t;
+        const z = pStart[2] * (1 - t) + pEnd[2] * t + 4 * apex_h * t * (1 - t);
+        curvePts.push([x, y, z]);
+      }
+
+      this.arcs.push({
+        p,
+        pStart,
+        pEnd,
+        apex_h,
+        curvePts,
+        class: p.class || "other",
+        ability: p.ability || "utility",
+        player: p.player || "Unknown"
+      });
+    }
+
     const canvas = $("traj3d");
-    const h = Math.max(400, Math.min(620, Math.round(800 * bounds.h / bounds.w)));
+    const h = Math.max(420, Math.min(560, Math.round(800 * (bounds.h || 120) / (bounds.w || 110))));
     if (canvas && canvas.height !== h) canvas.height = h;
   },
 
   toWorld(u, v, z) {
     return [(u - 0.5) * this.bounds.w, (v - 0.5) * this.bounds.h, z];
   },
+
   project(x, y, z, w, h) {
     const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
     const x1 = x * cy - y * sy;
@@ -660,48 +801,94 @@ const V3 = {
 };
 
 function draw3D() {
-  if (!V3.terrain) return;
   const canvas = $("traj3d");
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   const W = canvas.width, H = canvas.height;
+
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = "#070c14";
+  ctx.fillStyle = "#040711";
   ctx.fillRect(0, 0, W, H);
 
-  // Ground border & 3D perspective grid
+  // Subtle radial vignette in 3D arena
+  const arenaGlow = ctx.createRadialGradient(W / 2, H / 2, 40, W / 2, H / 2, W * 0.65);
+  arenaGlow.addColorStop(0, "rgba(0, 210, 255, 0.04)");
+  arenaGlow.addColorStop(1, "rgba(2, 4, 8, 0.9)");
+  ctx.fillStyle = arenaGlow;
+  ctx.fillRect(0, 0, W, H);
+
+  // 1. Isometric 16x16 Perspective Ground Grid
+  const halfW = V3.bounds.w / 2, halfH = V3.bounds.h / 2;
+  const gridDivs = 16;
   ctx.lineWidth = 1;
-  for (const frac of [0, 0.25, 0.5, 0.75, 1]) {
-    for (const [a, b, horiz] of [[frac, 0, false], [0, frac, true]]) {
-      const p1 = V3.project(...(horiz ? V3.toWorld(a, b, 0) : V3.toWorld(a, b, 0)));
-      const p2 = V3.project(...(horiz ? V3.toWorld(a + 1 - frac || 1, b, 0)
-                                      : V3.toWorld(a, b + 1 - frac || 1, 0)));
-      if (!p1 || !p2) continue;
-      ctx.strokeStyle = frac === 0 || frac === 1 ? "#2a3e59" : "rgba(0, 210, 255, 0.1)";
+
+  for (let i = 0; i <= gridDivs; i++) {
+    const frac = i / gridDivs;
+    const gx = -halfW + frac * V3.bounds.w;
+    const gy = -halfH + frac * V3.bounds.h;
+
+    // Major axis lines vs minor grid
+    const isMajor = (i === 0 || i === gridDivs || i === gridDivs / 2);
+    ctx.strokeStyle = isMajor ? "rgba(0, 210, 255, 0.22)" : "rgba(0, 210, 255, 0.05)";
+
+    // Lines along Y
+    const p1 = V3.project(gx, -halfH, 0, W, H);
+    const p2 = V3.project(gx, halfH, 0, W, H);
+    if (p1 && p2) {
       ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke();
     }
-  }
 
-  // Density terrain columns
-  const items = [];
-  const N = V3.terrain.n, cell = 1 / N;
-  for (let by = 0; by < N; by++) {
-    for (let bx = 0; bx < N; bx++) {
-      const n = V3.terrain.grid[by * N + bx];
-      if (!n) continue;
-      const t = n / V3.terrain.max;
-      const hgt = V3.MAXH * Math.sqrt(t);
-      const u0 = bx * cell, v0 = by * cell, u1 = u0 + cell, v1 = v0 + cell;
-      const corners = [V3.toWorld(u0, v0, hgt), V3.toWorld(u1, v0, hgt),
-                       V3.toWorld(u1, v1, hgt), V3.toWorld(u0, v1, hgt)]
-        .map(p => V3.project(p[0], p[1], p[2], W, H));
-      if (corners.some(c => !c)) continue;
-      const center = V3.project(...V3.toWorld((u0 + u1) / 2, (v0 + v1) / 2, hgt), W, H);
-      items.push({ depth: center[2], kind: "col", corners, t });
+    // Lines along X
+    const p3 = V3.project(-halfW, gy, 0, W, H);
+    const p4 = V3.project(halfW, gy, 0, W, H);
+    if (p3 && p4) {
+      ctx.beginPath(); ctx.moveTo(p3[0], p3[1]); ctx.lineTo(p4[0], p4[1]); ctx.stroke();
     }
   }
 
-  // Lineup trajectory arcs in 3D
+  // 2. Projected Ground Range Circles (25m, 50m, 75m)
+  [25, 50, 75].forEach(r => {
+    ctx.strokeStyle = "rgba(0, 210, 255, 0.07)";
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath();
+    let first = true;
+    for (let a = 0; a <= Math.PI * 2; a += 0.2) {
+      const p = V3.project(Math.cos(a) * r, Math.sin(a) * r, 0, W, H);
+      if (!p) continue;
+      if (first) { ctx.moveTo(p[0], p[1]); first = false; }
+      else ctx.lineTo(p[0], p[1]);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // 3. Four Corner Laser Beacon Pillars (0 to 35m height)
+  const cornerCoords = [
+    [-halfW, -halfH], [halfW, -halfH], [halfW, halfH], [-halfW, halfH]
+  ];
+  cornerCoords.forEach(([cx, cy]) => {
+    const base = V3.project(cx, cy, 0, W, H);
+    const top = V3.project(cx, cy, 35, W, H);
+    if (base && top) {
+      ctx.strokeStyle = "rgba(0, 210, 255, 0.25)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(base[0], base[1]); ctx.lineTo(top[0], top[1]); ctx.stroke();
+
+      // Elevation tick marks on pillars (10m, 20m, 30m)
+      [10, 20, 30].forEach(z => {
+        const tick = V3.project(cx, cy, z, W, H);
+        if (tick) {
+          ctx.strokeStyle = "rgba(0, 210, 255, 0.5)";
+          ctx.beginPath(); ctx.arc(tick[0], tick[1], 1.5, 0, Math.PI * 2); ctx.stroke();
+        }
+      });
+    }
+  });
+
+  // 4. Collect and Depth-Sort 3D Render Elements
+  const renderItems = [];
+
+  // Repeated lineups
   const abilityFilter = $("f-ability") ? $("f-ability").value : "";
   for (const l of V3.lineups) {
     if (abilityFilter && l.ability !== abilityFilter) continue;
@@ -709,41 +896,142 @@ function draw3D() {
       .map(p => V3.project(...V3.toWorld(p[0], p[1], p[2]), W, H));
     if (pts.some(p => !p)) continue;
     const mid = pts[Math.floor(pts.length / 2)];
-    items.push({ depth: mid[2], kind: "arc", pts, l,
-                 hl: V3.highlight === `${l.ability}@${l.map}` });
+    renderItems.push({
+      depth: mid[2], kind: "lineup", pts, l,
+      hl: V3.highlight === `${l.ability}@${l.map}`
+    });
   }
-  items.sort((a, b) => b.depth - a.depth);
 
-  for (const it of items) {
-    if (it.kind === "col") {
-      ctx.beginPath();
-      ctx.moveTo(it.corners[0][0], it.corners[0][1]);
-      for (let i = 1; i < 4; i++) ctx.lineTo(it.corners[i][0], it.corners[i][1]);
-      ctx.closePath();
-      ctx.fillStyle = heatColor(it.t);
-      ctx.globalAlpha = 0.35 + 0.55 * it.t;
-      ctx.fill();
-      ctx.globalAlpha = 1;
-    } else {
-      const cls = abilityClass(it.l.ability);
-      ctx.strokeStyle = it.hl ? "#ffffff" : (CLASS_COLORS[cls] || CLASS_COLORS.other);
-      ctx.lineWidth = it.hl ? 4 : 2;
+  // Active per-cast 3D arcs
+  for (const arc of (V3.arcs || [])) {
+    const pts2D = arc.curvePts.map(pt => V3.project(pt[0], pt[1], pt[2], W, H));
+    if (pts2D.some(p => !p)) continue;
+    const mid2D = pts2D[Math.floor(pts2D.length / 2)];
+    renderItems.push({
+      depth: mid2D[2], kind: "arc", pts: pts2D, arc
+    });
+  }
+
+  // Back-to-front depth sorting
+  renderItems.sort((a, b) => b.depth - a.depth);
+
+  // 5. Draw 3D Ballistic Trajectory Arcs
+  for (const it of renderItems) {
+    if (it.kind === "lineup") {
+      // Golden exploit lineup curve
+      ctx.strokeStyle = "#ffd166";
+      ctx.lineWidth = it.hl ? 4 : 2.5;
       ctx.globalAlpha = 0.95;
       ctx.beginPath();
       ctx.moveTo(it.pts[0][0], it.pts[0][1]);
       for (let i = 1; i < it.pts.length; i++) ctx.lineTo(it.pts[i][0], it.pts[i][1]);
       ctx.stroke();
 
-      const s = it.pts[0], e = it.pts[it.pts.length - 1];
-      ctx.fillStyle = CLASS_COLORS[cls] || CLASS_COLORS.other;
-      ctx.beginPath(); ctx.arc(s[0], s[1], 4, 0, Math.PI * 2); ctx.fill();
-
+      const s = it.pts[0];
       ctx.fillStyle = "#ffd166";
-      ctx.font = "bold 13px 'Rajdhani', sans-serif";
-      ctx.fillText(`★${it.l.repeats} [APEX ${it.l.trajectory.apex_m}m]`, s[0] + 8, s[1] - 6);
+      ctx.font = "bold 12px 'Rajdhani', sans-serif";
+      ctx.fillText(`★ ${it.l.repeats} [APEX ${it.l.trajectory.apex_m}m]`, s[0] + 8, s[1] - 6);
+      ctx.globalAlpha = 1;
+
+    } else if (it.kind === "arc") {
+      const arc = it.arc;
+      const col = CLASS_COLORS[arc.class] || CLASS_COLORS.other;
+
+      // Laser vertical drop-line from apex down to floor
+      const apexIdx = Math.floor(it.pts.length / 2);
+      const apex2D = it.pts[apexIdx];
+      const apexWorld = arc.curvePts[apexIdx];
+      const floor2D = V3.project(apexWorld[0], apexWorld[1], 0, W, H);
+
+      if (floor2D && apex2D) {
+        // Floor shadow ellipse
+        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+        ctx.beginPath();
+        ctx.ellipse(floor2D[0], floor2D[1], 7, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Vertical drop-line
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath(); ctx.moveTo(apex2D[0], apex2D[1]); ctx.lineTo(floor2D[0], floor2D[1]); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Outer glow curve
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 4;
+      ctx.globalAlpha = 0.25;
+      ctx.beginPath();
+      ctx.moveTo(it.pts[0][0], it.pts[0][1]);
+      for (let i = 1; i < it.pts.length; i++) ctx.lineTo(it.pts[i][0], it.pts[i][1]);
+      ctx.stroke();
+
+      // Sharp inner trajectory arc
+      ctx.lineWidth = 1.8;
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(it.pts[0][0], it.pts[0][1]);
+      for (let i = 1; i < it.pts.length; i++) ctx.lineTo(it.pts[i][0], it.pts[i][1]);
+      ctx.stroke();
+
+      // Caster origin blip (eye level)
+      const startPt = it.pts[0];
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath(); ctx.arc(startPt[0], startPt[1], 2.5, 0, Math.PI * 2); ctx.fill();
+
+      // Landing ground blip
+      const endPt = it.pts[it.pts.length - 1];
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(endPt[0], endPt[1], 3.5, 0, Math.PI * 2); ctx.fill();
+
+      // Floating holographic tag at apex
+      if (arc.apex_h >= 6) {
+        ctx.fillStyle = "rgba(4, 7, 17, 0.85)";
+        ctx.strokeStyle = col;
+        ctx.lineWidth = 1;
+        const tagText = `${arc.ability.toUpperCase()} // ${Math.round(arc.apex_h)}m`;
+        ctx.font = "bold 9px 'JetBrains Mono', monospace";
+        const tw = ctx.measureText(tagText).width;
+        ctx.fillRect(apex2D[0] - tw / 2 - 4, apex2D[1] - 14, tw + 8, 13);
+        ctx.strokeRect(apex2D[0] - tw / 2 - 4, apex2D[1] - 14, tw + 8, 13);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "center";
+        ctx.fillText(tagText, apex2D[0], apex2D[1] - 4);
+        ctx.textAlign = "left";
+      }
+
       ctx.globalAlpha = 1;
     }
   }
+
+  // 6. Empty-state HUD plate if no trajectories match active filters
+  if (!renderItems.length) {
+    const cx = W / 2, cy = H / 2;
+    ctx.save();
+    ctx.fillStyle = "rgba(7, 12, 20, 0.88)";
+    ctx.strokeStyle = "rgba(0, 210, 255, 0.4)";
+    ctx.lineWidth = 1.5;
+    const bw = 380, bh = 85;
+    const bx = (W - bw) / 2, by = (H - bh) / 2;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeRect(bx, by, bw, bh);
+
+    ctx.fillStyle = "#00d2ff";
+    ctx.font = "bold 13px 'Rajdhani', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("3D BALLISTIC ARENA // 0 TRAJECTORIES DETECTED", cx, by + 30);
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "11px 'JetBrains Mono', monospace";
+    ctx.fillText("Adjust player or agent filter above to populate 3D flight arcs", cx, by + 54);
+    ctx.restore();
+  }
+
+  // 7. Tactical HUD Canvas Header
+  ctx.fillStyle = "rgba(0, 210, 255, 0.7)";
+  ctx.font = "bold 10px 'JetBrains Mono', monospace";
+  ctx.fillText(`3D PERSPECTIVE FLIGHT ARENA // ${(V3.map || "SPLIT").toUpperCase()} // ${V3.arcs.length} FLIGHT ARCS`, 16, 22);
 }
 
 function v3Loop() {
@@ -968,9 +1256,18 @@ async function loadCues() {
   }
 }
 
+const LAYER_LABELS = {
+  smoke: "SMOKE ☁",
+  recon: "RECON ◎",
+  placeable: "TRAP ◈",
+  stall: "STALL ▲",
+  flash: "FLASH ✦",
+  density: "HEATMAP ♨"
+};
+
 function renderToggles() {
   $("layer-toggles").innerHTML = Object.keys(layers).map(k =>
-    `<button class="toggle-btn ${layers[k] ? "on" : ""}" data-layer="${k}">${k}</button>`).join("");
+    `<button class="toggle-btn ${layers[k] ? "on" : ""}" data-layer="${k}">${LAYER_LABELS[k] || k.toUpperCase()}</button>`).join("");
   document.querySelectorAll(".toggle-btn").forEach(btn =>
     btn.addEventListener("click", () => {
       layers[btn.dataset.layer] = !layers[btn.dataset.layer];

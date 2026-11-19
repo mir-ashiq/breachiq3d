@@ -100,11 +100,12 @@
 
         <div class="tactical-legend">
           <div class="legend-group">
-            <span class="legend-title">DENSITY:</span>
-            <span class="legend-chip"><i style="background:var(--heat-1)"></i>LOW</span>
-            <span class="legend-chip"><i style="background:var(--heat-2)"></i>MID</span>
-            <span class="legend-chip"><i style="background:var(--heat-3)"></i>HIGH</span>
-            <span class="legend-chip"><i style="background:var(--heat-4)"></i>EXTREME</span>
+            <span class="legend-title">UTILITY CLASSIFICATION:</span>
+            <span class="legend-chip"><i style="background:#a78bfa;border-radius:50%"></i>SMOKE (5m CLOUD)</span>
+            <span class="legend-chip"><i style="background:#00d2ff;transform:rotate(45deg)"></i>RECON (SONAR)</span>
+            <span class="legend-chip"><i style="background:#ffd166"></i>PLACEABLE (TRAP)</span>
+            <span class="legend-chip"><i style="background:#ff4655"></i>STALL (DENIAL)</span>
+            <span class="legend-chip"><i style="background:#ff7b00;border-radius:50%"></i>FLASH (POP)</span>
           </div>
           <div class="legend-group">
             <span class="legend-chip"><i class="star-chip">★</i>REPEATED LINEUP</span>
@@ -132,12 +133,13 @@
 
         <div class="canvas-viewport v3-viewport">
           <canvas id="traj3d" width="800" height="520"></canvas>
-          <div class="v3-orbit-hint">DRAG TO ORBIT · SCROLL TO ZOOM · CLICK LINEUP TO FOCUS</div>
+          <div class="v3-orbit-hint">DRAG TO ORBIT · SCROLL TO ZOOM · PERSPECTIVE FLIGHT PROJECTION</div>
         </div>
 
         <div class="tactical-legend v3-legend">
-          <span>HEIGHT COLUMNS = CAST DENSITY (PHYSICS EXAGGERATED)</span>
-          <span>· ARCS = 3D BALLISTIC FLIGHT ESTIMATES</span>
+          <span style="color:var(--c9-cyan);font-weight:700;">HOLOGRAPHIC 3D ARENA:</span>
+          <span>PARABOLIC FLIGHT CURVES &amp; APEX HEIGHT (0–35m)</span>
+          <span>· VERTICAL LASER DROP-LINES &amp; FLOOR IMPACT RETICLES</span>
           <span id="v3-note"></span>
         </div>
       </section>

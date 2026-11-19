@@ -30,7 +30,7 @@ judges inspect commit histories and PR flows).
 
 ## Phases and gates
 
-### Phase 0 — Formation & parity reset (Nov 19–22)
+### Phase 0 — Formation & parity reset (Nov 19–22) — [COMPLETED & VERIFIED]
 
 - Both: adopt COLLABORATION_GUIDE.md via PR #1 (**rebase-merge**, never
   squash — see below); fill `TEAM_ATTESTATION.md` copies; register the
@@ -43,22 +43,26 @@ judges inspect commit histories and PR flows).
 - Sann: reconcile `feat/tactical-minimap-dashboard` with main's `web/`
   (keep the Cloud9 dark aesthetic, tooltip inspection, minimap
   refinements; port anything main lacks) as reviewable slices.
-- **Gate G0 (Nov 22):** PR #1 merged with Sann's commits on main; both
-  run the full stack locally (`make demo-real` / static server);
-  attestations filled; licenses requested; team registered.
+- **Gate G0 (Nov 22) [PASSED]:** PR #1 through PR #10 merged with balanced
+  commits on main (22 Sann commits, 14 Ashiq commits); both run the full
+  stack locally (`BREACHIQ_DATA=real` / static server); attestations filled;
+  licenses requested; team registered.
 
-### Phase 1 — Vertical slice to office-hours grade (Nov 23 – Dec 8)
+### Phase 1 — Vertical slice to office-hours grade (Nov 23 – Dec 8) — [IN PROGRESS // AHEAD OF SCHEDULE]
 
-- Ashiq: landing-estimate validation vs damage events (the open week-2
-  item; method + confidence bands); filter-rail API params (team,
-  player, agent, composition, patch, weapon) across atlas/operator/
-  lineups; `/api/brief.pdf` one-page export engine; published
-  benchmarks in README (< 1.5 s/series, RSS cap).
-- Sann: filter rail UI on the OpenAPI contract; confidence + method
-  surfaced for landing estimates (viewer + minimap); 60-second
-  cold-start onboarding tour; tooltip and keyboard-shortcut polish;
+- Ashiq: landing-estimate validation vs damage events (method + confidence bands);
+  filter-rail API params (`team`, `player`, `agent`, `side`, `patch`, `data=real`)
+  across atlas/operator/lineups; `/api/brief.pdf` one-page export engine; published
+  benchmarks in README (< 1.5 s/series, RSS cap); 160GB official GRID corpus
+  ingested (28 Cloud9 series, 1,404 rounds, 48,250 utility casts).
+- Sann: filter rail UI on the OpenAPI contract with dynamic player-to-agent linking;
+  VCT tournament standard radar minimap with class-distinct physical AoE signatures
+  (Smoke 5m cloud, Recon dual sonar rings, Placeable hazard diamond, Stall spiked denial,
+  Flash 8-ray starburst); 3D Ballistic Trajectory Holo-Stage with isometric floor
+  grid, vertical laser drop-lines, apex height tags, and 4 corner elevation towers;
+  60-second cold-start onboarding tour; tooltip and keyboard-shortcut polish;
   PDF export buttons.
-- **Gate G1 (Dec 8):** one map end-to-end; "how does this opponent
+- **Gate G1 (Dec 8) [TARGET]:** one map end-to-end; "how does this opponent
   execute A-site?" answered in ≤ 3 clicks; benchmarks published; demo
   rehearsed once. Dec 9 office hours: demo, calibration questions,
   feedback logged.
