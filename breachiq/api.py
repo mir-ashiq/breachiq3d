@@ -36,6 +36,7 @@ def _data() -> dict:
 def _atlas(data: dict, map_name: str) -> dict:
     atlas = features.UtilityAtlas()
     by_round: dict[int, list[dict]] = {}
+    points: list[dict] = []
     for cast in data["casts"]:
         if cast["map"] != map_name:
             continue
@@ -45,17 +46,21 @@ def _atlas(data: dict, map_name: str) -> dict:
         u, v = spatial.normalize_position(state["position"], spatial.BOUNDS[map_name])
         landing = spatial.estimate_landing(cast, features.ABILITY_CLASS.get(cast["ability"], "recon"),
                                            spatial.BOUNDS[map_name])
-        by_round.setdefault(cast["round"], []).append({
+        entry = {
             "u": landing.u if landing else u, "v": landing.v if landing else v,
             "ability": cast["ability"], "quality": state["quality"],
             "confidence": landing.confidence if landing else None,
-            "is_estimate": True})
+            "is_estimate": True}
+        by_round.setdefault(cast["round"], []).append(entry)
+        points.append({**entry, "class": features.ABILITY_CLASS.get(cast["ability"], "other")})
     rounds_here = [r for r in data["rounds"] if r.get("map", map_name) == map_name]
     for r in rounds_here:
         atlas.add_round(by_round.get(r["round"], []), patch=r.get("patch", ""))
-    return atlas.result(matches=len(rounds_here),
-                        coverage="synthetic demo corpus; official exclusions: series 2855902, "
-                                 "Bind in 2855906, Split in 2877148, Abyss/Split merged in 2890334/2890361")
+    result = atlas.result(matches=len(rounds_here),
+                          coverage="synthetic demo corpus; official exclusions: series 2855902, "
+                                   "Bind in 2855906, Split in 2877148, Abyss/Split merged in 2890334/2890361")
+    result["points"] = points
+    return result
 
 
 @app.get("/health")
@@ -78,17 +83,59 @@ def atlas(map: str = Query(..., description="map name")) -> dict:
 
 @app.get("/api/operator")
 def operator() -> dict:
-    import numpy as np
-    data = _data()
-    rng = np.random.default_rng(11)
-    fp = features.OperatorFingerprint()
-    rounds = data["rounds"]
-    for r in rounds:
-        fp.add_round(player=str(rng.choice(["Alpha", "Bravo", "Charlie"])),
-                     agent=str(rng.choice(["jett", "chamber", "odin-user"])),
-                     bought_operator=bool(rng.random() < 0.35),
-                     hold_start_s=float(rng.uniform(5, 40)))
+    """Operator fingerprint from the SYNTHETIC fixture rounds.
+
+    Deterministic by construction: the fixture generator seeds per-player
+    Operator biases, so this endpoint returns the same numbers on every
+    call (the red team caught an earlier version re-randomizing per
+    request - fabricated data presented as analysis).
+    """
+    return _operator_from_rounds(_data(), features.OperatorFingerprint())
+
+
+PLAYERS = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"]
+
+
+def _operator_from_rounds(data: dict, fp: features.OperatorFingerprint) -> dict:
+    agent_of = dict(zip(PLAYERS, ["cypher", "sova", "killjoy", "brimstone", "chamber"]))
+    for r in data["rounds"]:
+        buyers = set(r.get("operator_buyers", []))
+        holds = r.get("operator_holds", {})
+        for p in PLAYERS:
+            fp.add_round(player=p, agent=agent_of[p],
+                         bought_operator=p in buyers,
+                         hold_start_s=holds.get(p))
     return fp.result()
+
+
+@app.get("/api/lineups")
+def lineups(map: str = Query("", description="optional map filter")) -> dict:
+    """Repeated utility lineups detected in the SYNTHETIC demo corpus.
+
+    Same detector as the real-data findings (docs/FINDINGS.md): same
+    ability cast from within 200 cm with aim within 10 degrees in 3+
+    distinct rounds.
+    """
+    data = _data()
+    det = features.LineupDetector()
+    for cast in data["casts"]:
+        if map and cast["map"] != map:
+            continue
+        state = spatial.cast_state(cast)
+        if state is None or not state.get("view"):
+            continue
+        det.add(ability=cast["ability"], map=cast["map"],
+                position=state["position"], view=state["view"],
+                round_key=f"demo:{cast['map']}:{cast['round']}",
+                confidence=0.6 if state["quality"] != "ok" else 1.0)
+    out = []
+    for l in det.result():
+        bounds = spatial.BOUNDS.get(l["map"])
+        if bounds and "position" in l:
+            u, v = spatial.normalize_position(l["position"], bounds)
+            l["u"], l["v"] = round(u, 4), round(v, 4)
+        out.append(l)
+    return {"lineups": out, "data": "SYNTHETIC demo corpus"}
 
 
 @app.get("/api/pacing")

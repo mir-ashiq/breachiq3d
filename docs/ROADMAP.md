@@ -15,11 +15,14 @@ stay live through **Feb 3, 2027**; winners announced on or around **Feb 8**.
 - [x] SYNTHETIC fixtures + pipeline verification (benchmark, coverage,
       render smoke check)
 
-## Week 2 (Nov 24–30): spatial engine hardening
+## Week 2 (Nov 24–30): spatial engine hardening — PULLED FORWARD, DONE Nov 19
 
-- [ ] Calibrate real map bounds from GRID meta CSVs (replace placeholders)
-- [ ] Join real supplement files via `grid_event_id`; re-run coverage report
-- [ ] Landing-estimate validation vs damage events (method + confidence)
+- [x] Calibrate real map bounds (13 maps, real `map.bounds` from the feeds)
+- [x] Join real supplement files via `grid_event_id`; coverage re-run
+      (28 Cloud9 series: 66 games, 1,404 rounds, 48,250 casts —
+      docs/FINDINGS.md)
+- [ ] Landing-estimate validation vs damage events (method + confidence) —
+      still open, moves with the week-3 canvas
 
 ## Week 3 (Dec 1–7): tactical canvas
 

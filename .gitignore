@@ -25,3 +25,7 @@ htmlcov/
 # OS noise
 .DS_Store
 Thumbs.db
+
+# starter-data clone locations (never commit)
+stl-hackathon-2026-grid-starter/
+grid-data/

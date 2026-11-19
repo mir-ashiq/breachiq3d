@@ -38,10 +38,16 @@ def generate_series(seed: int = 7, n_rounds: int = 40) -> dict:
     """One synthetic series in the verified schema shape."""
     rng = np.random.default_rng(seed)
     rounds, casts = [], []
+    op_bias = {p: float(rng.uniform(0.05, 0.6)) for p in PLAYERS}
     for r in range(n_rounds):
         site = str(rng.choice(["a", "b", "mid"]))
         economy = str(rng.choice(["full", "full", "eco", "eco", "force"]))
         quality = "ok"
+        # deterministic Operator purchases: seeded per-player bias, so the
+        # API's operator view is stable across calls (no live randomness)
+        operator_buyers = [p for p in PLAYERS if rng.random() < op_bias[p]]
+        operator_holds = {p: round(float(rng.uniform(4, 40)), 1)
+                          for p in operator_buyers}
         for i in range(int(rng.integers(1, 5))):
             pos = {"x": float(rng.uniform(-3800, 3800)),
                    "y": float(rng.uniform(-3800, 3800)),
@@ -78,12 +84,32 @@ def generate_series(seed: int = 7, n_rounds: int = 40) -> dict:
                 "map": MAPS[r % len(MAPS)], "site": site, "round": r,
                 "frame_before": fb, "frame_after": fa, "quality": quality,
             })
+        # deliberate set play: every 4th round Echo casts sage-wall from
+        # the same spot with the same aim (a practiced lineup). Exercises
+        # the LineupDetector on the demo corpus with honest, labeled data.
+        # Position sits inside split's REAL calibrated bounds.
+        if r % 4 == 0:
+            pos = {"x": -1500.0, "y": -500.0, "z": 0.0}
+            view = _unit(math.radians(35.0), 0.1)
+            vel = {"x": 0.0, "y": 0.0, "z": 0.0}
+            casts.append({
+                "grid_event_id": f"synthetic-evt-{r:03d}-setplay",
+                "in_grid": True,
+                "occurred_at": f"2026-11-{(r % 28) + 1:02d}T12:05:00Z",
+                "player_id": "Echo", "ability": "sage-wall",
+                "map": "split", "site": site, "round": r,
+                "frame_before": _frame(rng, -180, pos, view, vel),
+                "frame_after": _frame(rng, 180, pos, view, vel),
+                "quality": "ok",
+            })
         rounds.append({
             "round": r, "site": site, "economy": economy,
             "first_utility_s": round(float(rng.uniform(3, 15)), 1),
             "plant_s": round(float(rng.uniform(20, 45)), 1),
             "first_death_zone": str(rng.choice(["b-heaven", "a-main", "mid-vents", ""])),
             "attacker": str(rng.choice(["TSM", "SEN"])), "patch": "11.08",
+            "operator_buyers": operator_buyers,
+            "operator_holds": operator_holds,
         })
     return {"rounds": rounds, "casts": casts}
 

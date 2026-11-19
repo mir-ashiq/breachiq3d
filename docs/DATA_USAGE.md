@@ -4,34 +4,36 @@ How every asset the hackathon organizers provided was used in this project.
 Maintained for transparency — judges and teammates can trace every design
 decision back to a provided resource.
 
-## 1. GRID official data corpus — schema used, data NOT redistributed
+## 1. GRID official data corpus — DIRECTLY INTEGRATED (2026-11-19)
 
-The corpus itself (857 VALORANT series, ~160 GB uncompressed, plus 856
-ability-supplement files) is **not committed and not yet directly
-processed**: it requires GRID registration to download, and its license
-forbids redistribution (see COMPLIANCE.md). What WAS used, and drives the
-entire engine, is the corpus's **verified contract** from the supplement
-README:
+The corpus (public starter repo `cloud9esports/stl-hackathon-2026-grid-starter`,
+857 VALORANT series + 856 ability supplements) is consumed directly by
+`breachiq/corpus.py` and `scripts/build_findings.py`, pointed at a sibling
+clone (never committed; the license forbids redistribution — only
+aggregates like docs/FINDINGS.md are published, which the data README
+explicitly permits). To date: **all 28 Cloud9 series scanned** — 66 games,
+1,404 rounds, 48,250 casts, 99.7% quality `ok`.
 
-| Provided contract element | Where it is used |
+| Corpus contract element | Where it is used |
 |---|---|
 | Position x/y/z in cm, z-up, x/y in GRID frame | `spatial.py` units & axes; `docs/DATA_QUALITY.md` |
 | 3D `view` aim vector, 3D `velocity` per cast | `spatial.estimate_landing` raycast estimates |
 | `frame_before`/`frame_after` with `offset_ms` | `spatial.cast_state`, `sample_weight` |
-| Interpolation formulas (weight/value, view re-normalized) | `spatial.interpolate` (verbatim) + property tests |
+| Interpolation formulas (weight/value, view re-normalized) | `spatial.interpolate` (verbatim); verified against the supplement's own `quality` field — 0 mismatches on real data |
 | The five quality values (`ok`, `gap_exceeded`, `missing_after`, `missing_before`, `missing_both`) | `spatial.classify_quality`, README-exact fallback rules |
 | 1 Hz VCT Americas sampling (gaps ~1000 ms) | `spatial.is_low_rate` + confidence down-weighting |
 | `in_grid: false` semantics (between rounds / buy phase) | `ingest.iter_supplement_casts(in_grid_only=...)` |
-| `grid_event_id` join key to main-feed events | `ingest.join_key`, join tests |
-| Exclusions: series 2855902; Bind in 2855906; Split in 2877148; merged Abyss/Split in 2890334/2890361 | `ingest.EXCLUSION_MANIFEST`, coverage in evidence bar |
+| `grid_event_id` join to `player-used-ability` | `corpus.SeriesScanner`, join tests |
+| Envelope format (`occurredAt`, `events[]`, `seriesState`) | round timelines, full-state snapshots |
+| `seriesState` player snapshots (agent, loadout, inventory, position) | Operator detection (inventory `operator`/`odin`), economy estimates, hold positions |
+| `map.bounds` per game | `spatial.BOUNDS` calibrated for 13 maps (real values) |
+| `series-!started-game` rollbacks | `ingest.RollbackTracker`; caught 3 real abandoned maps in the Cloud9 scan |
+| Exclusions: series 2855902; Bind in 2855906; Split in 2877148; merged Abyss/Split in 2890334/2890361 | `ingest.EXCLUSION_MANIFEST`, coverage notes in FINDINGS.md |
+| meta/games.csv, series.csv | series indexing, team filtering, patch attribution |
 | "No landing locations anywhere" | every landing zone is a labeled ESTIMATE with method + confidence |
 
-The repo therefore ships **SYNTHETIC fixtures that obey this exact schema**
-(`breachiq/fixtures.py`), so the demo, tests, and CI run end-to-end with
-zero licensed bytes. Connecting the real corpus is ROADMAP week 2: download
-outside the repo, calibrate map bounds from the GRID meta CSVs, join real
-supplements, re-run coverage/benchmark. The schema-pinning tests guarantee
-integration is a calibration step, not a rewrite.
+The committed fixtures remain **SYNTHETIC** (same schema), so tests, CI, and
+the public demo run with zero licensed bytes.
 
 ## 2. Official rules page (cloud9.devpost.com/rules)
 
@@ -78,7 +80,8 @@ the single-entry Category 1 focus with a capacity-gated second entry
 
 ---
 
-**Honest status line for judges**: engine, tests, API, and dashboard run on
-synthetic data obeying the verified GRID schema; real-corpus integration is
-roadmapped for week 2 and is a calibration step by design, not a rewrite.
-No GRID data or derivatives are committed, ever.
+**Honest status line for judges**: the engine, API, and dashboard run on
+SYNTHETIC fixtures (committed, zero licensed bytes), and the same pipeline
+directly scans the real GRID corpus — all 28 Cloud9 series to date, with
+reproducible aggregates in [FINDINGS.md](FINDINGS.md). No GRID data files
+or raw derivatives are committed, ever.

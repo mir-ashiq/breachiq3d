@@ -63,10 +63,30 @@ consistent. **No change to the model** (85.4% conditional on executing the
 audited spec). What the dossier does change: the differentiation table now
 names two live rivals, and the JetBrains-plugin item is now a tracked task.
 
+## Update 2026-11-19 (deep rival-code scan): parity achieved, lead extended
+
+A direct code-level scan of both live rivals (repo trees, READMEs, commit
+history) confirmed NunyaIntel as the real threat and closed every gap it
+had on us, same day:
+
+| NunyaIntel advantage (observed) | Our response (shipped) |
+|---|---|
+| Runs on the real GRID corpus (857 series) | `breachiq/corpus.py` scans the real corpus; 28 Cloud9 series done (48,250 casts) with reproducible aggregates in FINDINGS.md |
+| Real findings with hard counts in README | README + FINDINGS.md carry real numbers (99-round repeated wall, OXY 40/962 Op rounds, 53%/50% side win rates) |
+| Repeated-lineup detection (their best feature) | `features.LineupDetector` — same idea, 3D aim-vector aware, tolerance-parameterized, tested |
+| TypeScript web app | static GitHub-Pages demo (they have none deployed), cast-point minimap, lineup markers |
+| Coach-first framing | counter-brief NLG + evidence bars on every view |
+
+Remaining advantages they hold: a fuller React frontend (our 3D trajectory
+canvas is the week-3 centerpiece and will exceed it); 22 commits of
+iteration vs our continuous CI. Neither rival has CI, a license file
+(NunyaIntel), or a deployed demo.
+
 ## Standing actions
 
 - [x] Name and monitor the two live rivals (weekly re-scan, same cadence
       as red-team re-runs)
 - [x] JetBrains integration stretch goal added to ROADMAP week 3
 - [x] Category-1 choice re-validated against crowding
+- [x] Real-data parity achieved + lineup detection shipped (Nov 19)
 - [ ] Weekly dossier refresh alongside the red-team re-run

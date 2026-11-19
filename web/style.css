@@ -133,3 +133,15 @@ footer { padding: 10px 16px; font-size: 10px; color: var(--text-dim); border-top
   body { font-size: 13px; }
   .card { padding: 8px; }
 }
+
+/* static-demo banner (GitHub Pages mode) */
+#demo-banner {
+  background: linear-gradient(90deg, #1c2536, #1a2332);
+  border: 1px solid #2a3547;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+#demo-banner a { color: #8ecae6; }

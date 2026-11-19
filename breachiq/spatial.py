@@ -15,9 +15,8 @@ Contract (from the starter-repo README, verified 2026-11-18):
   - Landing locations are NOT provided anywhere: every landing zone we show is
     an ESTIMATE (raycast projection) and must be labeled as such.
 
-Map bounds in BOUNDS are synthetic placeholders used by the synthetic
-fixtures and tests; calibrate real bounds from the GRID meta CSVs before
-running against the official corpus (see docs/DATA_QUALITY.md).
+Map bounds in BOUNDS are CALIBRATED from real GRID `map.bounds` (see
+docs/DATA_QUALITY.md for the calibration procedure and date).
 """
 from __future__ import annotations
 
@@ -57,17 +56,23 @@ class MapBounds:
         return self.y_max - self.y_min
 
 
-# SYNTHETIC calibration values (placeholder until calibrated from GRID meta).
-# The calibration procedure is part of docs/DATA_QUALITY.md.
+# CALIBRATED from real `map.bounds` in the official GRID feeds
+# (2026-11-19, scripts/build_findings.py output + a breeze series).
+# Synthetic fixtures use these too, so demo coordinates match reality.
 BOUNDS: dict[str, MapBounds] = {
-    "ascent": MapBounds(-4000.0, 4000.0, -4000.0, 4000.0),
-    "split": MapBounds(-4000.0, 4000.0, -4000.0, 4000.0),
-    "bind": MapBounds(-4000.0, 4000.0, -4000.0, 4000.0),
-    "haven": MapBounds(-4000.0, 4000.0, -4000.0, 4000.0),
-    "pearl": MapBounds(-4000.0, 4000.0, -4000.0, 4000.0),
-    "lotus": MapBounds(-4000.0, 4000.0, -4000.0, 4000.0),
-    "sunset": MapBounds(-4000.0, 4000.0, -4000.0, 4000.0),
-    "abyss": MapBounds(-4000.0, 4000.0, -4000.0, 4000.0),
+    "abyss":   MapBounds(-6000.0, 6000.0, -6800.0, 5800.0),
+    "ascent":  MapBounds(-4850.0, 7550.0, -11100.0, 2200.0),
+    "bind":    MapBounds(100.0, 16100.0, -7300.0, 6050.0),
+    "breeze":  MapBounds(-1650.0, 11450.0, -6200.0, 7200.0),
+    "corrode": MapBounds(-6000.0, 6000.0, -7100.0, 6500.0),
+    "fracture": MapBounds(3000.0, 13900.0, -6850.0, 4700.0),
+    "haven":   MapBounds(-3700.0, 7450.0, -14100.0, -1800.0),
+    "icebox":  MapBounds(-8300.0, 3100.0, -5200.0, 7200.0),
+    "lotus":   MapBounds(300.0, 11000.0, -5500.0, 6550.0),
+    "pearl":   MapBounds(-500.0, 11250.0, -6100.0, 6550.0),
+    "split":   MapBounds(-3450.0, 8300.0, -10050.0, 950.0),
+    "summit":  MapBounds(300.0, 12700.0, -50.0, 10250.0),
+    "sunset":  MapBounds(-6000.0, 6450.0, -5800.0, 6000.0),
 }
 
 

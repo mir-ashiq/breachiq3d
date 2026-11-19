@@ -23,7 +23,10 @@ def test_atlas_taxonomy_order():
     r = client.get("/api/atlas", params={"map": "split"})
     assert r.status_code == 200
     body = r.json()
-    assert body["taxonomy_order"] == ["placeable", "recon", "smoke", "stall", "flash"]
+    # the brief's five classes, in order; 'other' (unmapped real abilities)
+    # is allowed to trail them
+    assert body["taxonomy_order"][:5] == ["placeable", "recon", "smoke",
+                                          "stall", "flash"]
     assert body["abilities"], "atlas should have at least one ability"
     assert "hard_count" in body["abilities"][0]
 
