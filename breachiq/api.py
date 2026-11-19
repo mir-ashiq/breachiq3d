@@ -315,5 +315,19 @@ def brief_pdf(map: str = "split") -> Response:
                     headers={"Content-Disposition": f'inline; filename="breachiq_{map}_brief.pdf"'})
 
 
+@app.get("/favicon.ico")
+def favicon():
+    ico_path = REPO_ROOT / "web" / "favicon.ico"
+    if ico_path.exists():
+        return Response(ico_path.read_bytes(), media_type="image/x-icon")
+    return Response(b"", media_type="image/x-icon")
+
+
+@app.get("/")
+def root_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/app/index.html")
+
+
 # Dashboard (static, no build step) - judges get the UI at /app.
 app.mount("/app", StaticFiles(directory=str(REPO_ROOT / "web"), html=True), name="web")
