@@ -55,8 +55,10 @@ before pushing.
 
 The frontend reads from FastAPI endpoints when running live, and falls back to web/demo-data.json in demo mode. The backend must maintain the following schemas:
 
-### A. GET /api/atlas?map=<map_name>&side=<all|attack|defense>&patch=<patch>
+### A. GET /api/atlas?map=<map_name>&side=<all|attack|defense>&patch=<patch>&player=<player>&agent=<agent>
 Returns utility density, zone counts, and trajectory points for the map.
+`patch`/`player`/`agent` are optional roster filters (all filter points; in
+real-aggregate mode they are points-scope only, flagged via `points_scope`).
 
 Response Schema:
 {
@@ -103,6 +105,8 @@ Coordinates Contract:
 - u, v: Normalized landing or impact estimate on the minimap in range [0.0, 1.0].
 - azimuth: Aim vector horizontal angle in degrees [0, 360).
 - pitch: Aim vector vertical elevation angle in degrees [-90, +90].
+- player / agent: caster roster identity for the filter rail and tooltip
+  (agent empty string when the roster entry is unknown).
 - is_estimate: true (Required — GRID data contains no landing coordinates).
 
 ### B. GET /api/lineups?map=<map_name>

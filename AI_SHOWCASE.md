@@ -78,6 +78,30 @@ What we changed by hand:
 - Committed WebStorm project configurations (`.idea/breachiq3d-remote.iml`, `modules.xml`, `vcs.xml`) as official Devpost submission evidence.
 Verification: WebStorm project initialized, green indexing, 68 tests passing on `main`.
 
+### 2026-11-19 — backend: roster filters land behind the teammate's UI
+
+Tool: Z.ai agent (backend track), implementing the Week-3 filter-rail
+milestone from docs/ROADMAP.md against the teammate's landed frontend
+(commit 68cd516: dynamic player/agent selects + canvas tooltips).
+Prompt(s): "now what next" — the next milestone was derived from the
+teammate's actual frontend code, not invented: his `atlasQuery()` already
+sent `player`/`agent` params the API silently ignored (FastAPI drops
+unknown query params), which would have shipped decorative roster filters
+— the exact failure mode our own red team once caught.
+What the agent produced: `/api/atlas` now honors `player` + `agent`
+(synthetic mode: full filtering of zones and points; real-aggregate mode:
+points-scope with an explicit `points_scope` note), every trajectory
+point carries the caster's `agent` (synthetic roster map hoisted to
+`AGENT_OF`; real path tags from the scan's player roster), GUIDE.md §3A
+contract doc updated to match, 4 new/extended tests including the
+decorative-filter regression guard.
+What we changed by hand: kept the author email on the platform noreply
+address (guaranteed attribution) while adopting the teammate's pinned
+co-author convention; chose explicit `points_scope` honesty note over
+pretending real-mode aggregates filter by roster.
+Verification: `pytest` 83 passed, 1 skipped; `scripts/audit_repo.py`
+clean; branch → PR → CI → rebase-merge through the enforced gate.
+
 ## Workflow principles (what the story argues)
 
 1. Agents execute; developers decide. Every agent output lands behind a

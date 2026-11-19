@@ -177,7 +177,8 @@ def main() -> None:
                     ability=c["ability"], ability_class=c["ability_class"],
                     player=pname, round_no=c["round_no"],
                     quality=c["quality"], confidence=landing.confidence,
-                    patch=patch_by_game.get(str(c["game_id"]), ""))
+                    patch=patch_by_game.get(str(c["game_id"]), ""),
+                    agent=players.get(c["player_id"], {}).get("agent", "") or "")
                 if c["side"] in ("attacker", "defender"):
                     side_pts = points[c["map"]]
                     side_pts["all"].append(pt)

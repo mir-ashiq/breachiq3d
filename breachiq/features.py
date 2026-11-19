@@ -380,7 +380,8 @@ def trajectory_point(*, u: float, v: float, u0: float, v0: float,
                      azimuth: float | None, pitch: float | None,
                      ability: str, ability_class: str, player: str,
                      round_no: int | None, quality: str,
-                     confidence: float | None, patch: str = "") -> dict:
+                     confidence: float | None, patch: str = "",
+                     agent: str = "") -> dict:
     """One per-cast trajectory record in the exact shape docs/GUIDE.md §3A
     defines for GET /api/atlas points. Single source of truth shared by the
     synthetic API path (breachiq/api.py) and the real-corpus snapshot
@@ -394,7 +395,8 @@ def trajectory_point(*, u: float, v: float, u0: float, v0: float,
     walls-stop-abilities rule the landing projection applies. azimuth is
     normalized to [0, 360) and pitch clamped to [-90, 90] as the contract
     demands; both are None when no aim vector survived quality
-    classification.
+    classification. agent carries the caster's agent id for the roster
+    filter rail and the hover tooltip ("" when unknown).
     """
     clamp01 = lambda x: min(1.0, max(0.0, x))  # noqa: E731 - local for clarity
     return {
@@ -405,7 +407,7 @@ def trajectory_point(*, u: float, v: float, u0: float, v0: float,
         "pitch": (None if pitch is None
                   else round(max(-90.0, min(90.0, pitch)), 1)),
         "ability": ability, "class": ability_class,
-        "player": player, "round": round_no,
+        "player": player, "agent": agent, "round": round_no,
         "quality": quality,
         "confidence": None if confidence is None else round(confidence, 3),
         "is_estimate": True,

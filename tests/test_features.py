@@ -102,15 +102,17 @@ class TestTrajectoryPoint:
         args = dict(u=0.444849999, v=0.0, u0=0.421049999, v0=0.125,
                     azimuth=-10.04, pitch=18.5, ability="sage-wall",
                     ability_class="stall", player="Alpha", round_no=4,
-                    quality="ok", confidence=1.0, patch="11.08")
+                    quality="ok", confidence=1.0, patch="11.08",
+                    agent="cypher")
         args.update(kw)
         return features.trajectory_point(**args)
 
     def test_contract_fields_present(self):
         p = self._point()
         assert set(p) == {"u", "v", "u0", "v0", "azimuth", "pitch",
-                          "ability", "class", "player", "round",
+                          "ability", "class", "player", "agent", "round",
                           "quality", "confidence", "is_estimate", "patch"}
+        assert p["agent"] == "cypher"    # roster filter + tooltip field
 
     def test_rounding_and_angle_ranges(self):
         p = self._point()
@@ -118,6 +120,15 @@ class TestTrajectoryPoint:
         assert p["azimuth"] == 350.0      # -10.04 deg normalized to [0, 360)
         assert p["pitch"] == 18.5         # clamped to [-90, 90]
         assert p["confidence"] == 1.0
+
+    def test_agent_defaults_to_empty_when_unknown(self):
+        # the agent kwarg is optional: an unresolved roster entry must not
+        # raise, it just stays honestly empty
+        p = features.trajectory_point(
+            u=0.1, v=0.2, u0=0.3, v0=0.4, azimuth=0.0, pitch=0.0,
+            ability="x", ability_class="other", player="?",
+            round_no=1, quality="ok", confidence=1.0)
+        assert p["agent"] == ""
 
     def test_estimate_label_is_permanent(self):
         # GRID records no landing coordinates: is_estimate can never be

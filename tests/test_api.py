@@ -135,8 +135,8 @@ def test_openapi_contract_published():
 
 # ------------------------------------------- GUIDE.md section 3A contract
 POINT_FIELDS = ("u", "v", "u0", "v0", "azimuth", "pitch", "ability",
-                "class", "player", "round", "quality", "confidence",
-                "is_estimate", "patch")
+                "class", "player", "agent", "round", "quality",
+                "confidence", "is_estimate", "patch")
 
 
 def _check_point(p: dict) -> None:
@@ -157,12 +157,13 @@ def _check_point(p: dict) -> None:
 
 def test_atlas_points_match_frontend_contract():
     """Every atlas point carries the caster coords, aim angles and
-    player/round the minimap arcs and hover tooltips render from
+    player/agent/round the minimap arcs and hover tooltips render from
     (docs/GUIDE.md section 3A)."""
     body = client.get("/api/atlas", params={"map": "split"}).json()
     assert body["points"], "synthetic atlas must carry per-cast points"
     for p in body["points"]:
         _check_point(p)
+        assert p["agent"], "synthetic roster always resolves an agent"
     # the ability filter narrows points, not just the abilities table
     ab = body["abilities"][0]["ability"]
     one = client.get("/api/atlas", params={"map": "split", "ability": ab}).json()
@@ -180,6 +181,39 @@ def test_atlas_guide_side_aliases():
         assert a == b, f"side alias {alias} diverges from {canonical}"
     assert client.get("/api/atlas",
                       params={"map": "split", "side": "nokia"}).status_code == 422
+
+
+def test_atlas_player_and_agent_filters():
+    """The Week-3 filter rail sends player= and agent= params: they must
+    ACTUALLY filter points and zones server-side. An earlier version of
+    the rail shipped decorative selects and the red team caught it - this
+    test keeps that failure mode out of the roster filters. (On the split
+    fixtures Echo/chamber is the heaviest caster.)"""
+    base = client.get("/api/atlas", params={"map": "split"}).json()
+    zones = lambda b: sum(sum(a["zones"].values()) for a in b["abilities"])
+
+    echo = client.get("/api/atlas",
+                      params={"map": "split", "player": "Echo"}).json()
+    assert echo["points"]
+    assert {p["player"] for p in echo["points"]} == {"Echo"}
+    assert all(p["agent"] == "chamber" for p in echo["points"])
+    assert 0 < zones(echo) <= zones(base), "player filter shrinks the atlas"
+
+    chamber = client.get("/api/atlas",
+                         params={"map": "split", "agent": "chamber"}).json()
+    assert {p["player"] for p in chamber["points"]} == {"Echo"}
+    assert zones(chamber) == zones(echo)
+
+    # combined filters narrow further and stay honest when nothing matches
+    both = client.get("/api/atlas", params={"map": "split",
+                                            "player": "Echo",
+                                            "agent": "chamber",
+                                            "side": "attacker"}).json()
+    assert {p["player"] for p in both["points"]} == {"Echo"}
+    assert all(p["agent"] == "chamber" for p in both["points"])
+    miss = client.get("/api/atlas", params={"map": "split",
+                                            "agent": "jett"}).json()
+    assert miss["points"] == [] and zones(miss) == 0
 
 
 def test_atlas_patch_filter():
@@ -215,15 +249,16 @@ def test_real_mode_points_honest_when_snapshot_predates_them(monkeypatch):
 def test_real_mode_serves_snapshot_points_when_present(monkeypatch):
     """Forward compatibility: once the snapshot is rebuilt with
     `make findings`, its per-cast points flow through the real-mode
-    endpoint with side/ability/patch filtering intact."""
+    endpoint with side/ability/patch/player/agent filtering intact."""
     import breachiq.api as api_mod
     from breachiq import features as f
 
-    def pt(ability, patch):
+    def pt(ability, patch, player="Alpha", agent="cypher"):
         return f.trajectory_point(
             u=0.5, v=0.5, u0=0.4, v0=0.4, azimuth=35.0, pitch=18.5,
-            ability=ability, ability_class="stall", player="Alpha",
-            round_no=4, quality="ok", confidence=1.0, patch=patch)
+            ability=ability, ability_class="stall", player=player,
+            round_no=4, quality="ok", confidence=1.0, patch=patch,
+            agent=agent)
 
     snap = {"REAL": True,
             "bounds_m": {"split": {"w": 100.0, "h": 100.0}},
@@ -233,7 +268,8 @@ def test_real_mode_serves_snapshot_points_when_present(monkeypatch):
                                "zones": {"a": 2},
                                "hard_count": "2/4 rounds", "evidence": {}}],
                 "points": [pt("sage-wall", "11.08"),
-                           pt("viper-wall", "11.08"),
+                           pt("viper-wall", "11.08", player="Bravo",
+                              agent="sova"),
                            pt("sage-wall", "11.09")],
                 "points_total": 9}}}}}
     monkeypatch.setattr(api_mod, "_SNAPSHOT", snap)
@@ -251,5 +287,15 @@ def test_real_mode_serves_snapshot_points_when_present(monkeypatch):
     p11 = client.get("/api/atlas",
                      params={"map": "split", "patch": "11.08"}).json()
     assert len(p11["points"]) == 2
-    assert "points only" in p11["patch_scope"]
+    assert "points only" in p11["points_scope"]
+
+    alpha = client.get("/api/atlas",
+                       params={"map": "split", "player": "Alpha"}).json()
+    assert {p["player"] for p in alpha["points"]} == {"Alpha"}
+    assert "points only" in alpha["points_scope"]
+    assert "points_total" not in alpha
+
+    sova = client.get("/api/atlas",
+                      params={"map": "split", "agent": "sova"}).json()
+    assert {p["agent"] for p in sova["points"]} == {"sova"}
     monkeypatch.delenv("BREACHIQ_DATA")
