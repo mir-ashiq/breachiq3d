@@ -297,6 +297,13 @@ header {
   font-size: 10px;
 }
 
+.btn-tactical.active {
+  background: var(--c9-cyan);
+  color: #030712;
+  border-color: var(--c9-cyan);
+  box-shadow: 0 0 10px rgba(0, 210, 255, 0.4);
+}
+
 /* ---------------- Main Stage Grid ---------------- */
 main {
   flex: 1;
