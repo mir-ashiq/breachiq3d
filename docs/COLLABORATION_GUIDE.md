@@ -39,7 +39,7 @@ gitGraph
 1. **Never push directly to `main`:** All code lands via PR review.
 2. **Co-Authorship for Shared Work:** When collaborating on API contracts or submission files, add this trailer to commit messages:
    ```text
-   Co-authored-by: mir-ashiq <164319409+mir-ashiq@users.noreply.github.com>
+   Co-authored-by: mir-ashiq <imsrenpsycho@gmail.com>
    Co-authored-by: steavengalang <steavengalang@gmail.com>
    ```
 3. **Local Git Identity Configuration:**
