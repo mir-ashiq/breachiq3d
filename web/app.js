@@ -15,7 +15,45 @@ let DEMO_DATA = null;      // demo snapshot (github.io / ?demo)
 let REAL_API = false;      // API serving real aggregates (BREACHIQ_DATA=real)
 let COV = null;            // coverage/evidence context (demo or real API)
 let META = null;
-let lineupsCache = null;
+let activeLineupHover = null;
+let currentMinimapPoints = [];
+
+function setupMinimapTooltips() {
+  const canvas = $("minimap");
+  const tip = $("canvas-tooltip");
+  if (!canvas || !tip) return;
+
+  canvas.addEventListener("mousemove", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+
+    // Check hit on cached lineups or points
+    const hit = currentMinimapPoints.find(p => {
+      const dx = p.x - mx, dy = p.y - my;
+      return Math.sqrt(dx * dx + dy * dy) <= p.r + 4;
+    });
+
+    if (hit) {
+      tip.innerHTML = `
+        <b>${hit.label}</b>
+        <span class="sub">${hit.sub || ""}</span>
+        ${hit.extra ? `<div style="color:var(--accent-2);font-size:10px;margin-top:2px;">${hit.extra}</div>` : ""}
+      `;
+      tip.style.left = `${e.clientX - rect.left}px`;
+      tip.style.top = `${e.clientY - rect.top}px`;
+      tip.classList.remove("hidden");
+    } else {
+      tip.classList.add("hidden");
+    }
+  });
+
+  canvas.addEventListener("mouseleave", () => {
+    tip.classList.add("hidden");
+  });
+}
 
 const ZONES = { a: [0.05, 0.05, 0.45, 0.45], b: [0.55, 0.05, 0.95, 0.45],
                 c: [0.3, 0.55, 0.7, 0.95], mid: [0.45, 0.35, 0.6, 0.65] };
@@ -85,12 +123,20 @@ async function fetchLineups() {
 /* ---------------- URL state (shareable views) ---------------- */
 function readHash() {
   const p = new URLSearchParams(location.hash.slice(1));
-  return { map: p.get("map"), side: p.get("side"), ability: p.get("ability") };
+  return {
+    map: p.get("map"),
+    side: p.get("side"),
+    ability: p.get("ability"),
+    player: p.get("player"),
+    agent: p.get("agent")
+  };
 }
 function writeHash() {
   const p = new URLSearchParams();
   if ($("f-map").value) p.set("map", $("f-map").value);
   if ($("f-side").value && $("f-side").value !== "all") p.set("side", $("f-side").value);
+  if ($("f-player") && $("f-player").value && $("f-player").value !== "all") p.set("player", $("f-player").value);
+  if ($("f-agent") && $("f-agent").value && $("f-agent").value !== "all") p.set("agent", $("f-agent").value);
   if ($("f-ability").value) p.set("ability", $("f-ability").value);
   history.replaceState(null, "", "#" + p.toString());
 }
@@ -100,8 +146,13 @@ function atlasQuery() {
   const map = $("f-map").value || "lotus";
   const side = $("f-side").value || "all";
   const ability = $("f-ability").value || "";
-  return `/api/atlas?map=${encodeURIComponent(map)}&side=${encodeURIComponent(side)}`
-       + (ability ? `&ability=${encodeURIComponent(ability)}` : "");
+  const player = $("f-player") ? $("f-player").value : "all";
+  const agent = $("f-agent") ? $("f-agent").value : "all";
+  let q = `/api/atlas?map=${encodeURIComponent(map)}&side=${encodeURIComponent(side)}`;
+  if (ability) q += `&ability=${encodeURIComponent(ability)}`;
+  if (player && player !== "all") q += `&player=${encodeURIComponent(player)}`;
+  if (agent && agent !== "all") q += `&agent=${encodeURIComponent(agent)}`;
+  return q;
 }
 
 function buildTerrain(atlas) {
@@ -219,19 +270,28 @@ function drawMinimap(atlas, lineups, bounds) {
   // clamped to the canvas; a few real casts sit just outside recorded
   // playable bounds and are kept true in the data)
   const abilityFilter = $("f-ability").value;
+  currentMinimapPoints = [];
   for (const l of (lineups || []).filter(l => l.map === map)) {
     if (abilityFilter && l.ability !== abilityFilter) continue;
     if (l.u == null) continue;
     const su = Math.min(1, Math.max(0, l.u));
     const sv = Math.min(1, Math.max(0, l.v));
+    const lx = su * W, ly = sv * H;
     ctx.strokeStyle = "#ffd166";
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.arc(su * W, sv * H, 10, 0, Math.PI * 2);
+    ctx.arc(lx, ly, 10, 0, Math.PI * 2);
     ctx.stroke();
     ctx.fillStyle = "#ffd166";
     ctx.font = "bold 14px monospace";
-    ctx.fillText(`★${l.repeats}`, su * W + 13, sv * H - 9);
+    ctx.fillText(`★${l.repeats}`, lx + 13, ly - 9);
+
+    currentMinimapPoints.push({
+      x: lx, y: ly, r: 12,
+      label: `Repeated Lineup: ${l.ability.toUpperCase()}`,
+      sub: `Repeated across ${l.repeats} rounds · Aim: ${l.aim_azimuth_deg ?? "—"}°`,
+      extra: `★ Exploit Target (Pre-aim)`
+    });
   }
 
   // operator hold-angle overlay (real data: positions are map-tagged)
@@ -250,6 +310,13 @@ function drawMinimap(atlas, lineups, bounds) {
       ctx.moveTo(x, y - 6); ctx.lineTo(x + 5, y + 4); ctx.lineTo(x - 5, y + 4);
       ctx.closePath(); ctx.fill();
       if (i === 0) ctx.fillText(`▲ ${HOLD.player}`, x + 8, y - 4);
+
+      currentMinimapPoints.push({
+        x: x, y: y, r: 8,
+        label: `Operator Hold: ${HOLD.player}`,
+        sub: `Sniper angle · Round hold start`,
+        extra: `▲ Heavy weapon bias`
+      });
     });
   }
   $("hold-note").textContent = HOLD.player
@@ -693,10 +760,29 @@ async function boot() {
       COV = META.coverage || COV;
       setBanner(COV);
     }
+    // populate player & agent filters from operator roster if available
+    try {
+      const op = DEMO ? DEMO_DATA.operator : await get("/api/operator");
+      if (op && op.players && op.players.length) {
+        const players = Array.from(new Set(op.players.map(p => p.player))).sort();
+        const agents = Array.from(new Set(op.players.map(p => p.agent))).sort();
+        if ($("f-player")) {
+          $("f-player").innerHTML = `<option value="all">all players</option>` +
+            players.map(p => `<option value="${p}">${p}</option>`).join("");
+        }
+        if ($("f-agent")) {
+          $("f-agent").innerHTML = `<option value="all">all agents</option>` +
+            agents.map(a => `<option value="${a}">${a}</option>`).join("");
+        }
+      }
+    } catch (_) {}
+
     const h = readHash();
     if (h.map && maps.includes(h.map)) $("f-map").value = h.map;
     if (h.side) $("f-side").value = h.side;
     if (h.ability) $("f-ability").value = h.ability;
+    if (h.player && $("f-player")) $("f-player").value = h.player;
+    if (h.agent && $("f-agent")) $("f-agent").value = h.agent;
     if (!h.map) {
       const preferred = maps.includes("lotus") ? "lotus" : maps[0];
       if (preferred) $("f-map").value = preferred;
@@ -705,11 +791,14 @@ async function boot() {
     setState($("evidence"), "error", `API unreachable: ${err.message}`);
   }
   renderToggles();
+  setupMinimapTooltips();
   v3Controls();
   requestAnimationFrame(v3Loop);
   $("f-map").addEventListener("change", () => { $("f-ability").value = ""; loadAtlas(); loadOperator(); loadCues(); });
   $("f-side").addEventListener("change", () => { loadAtlas(); loadCues(); });
   $("f-ability").addEventListener("change", () => { loadAtlas(); loadCues(); });
+  if ($("f-player")) $("f-player").addEventListener("change", () => { loadAtlas(); loadOperator(); loadCues(); });
+  if ($("f-agent")) $("f-agent").addEventListener("change", () => { loadAtlas(); loadOperator(); loadCues(); });
   $("btn-refresh").addEventListener("click", loadAll);
   $("btn-brief").addEventListener("click", () => window.open(
     `${API}/api/brief.pdf?map=${encodeURIComponent($("f-map").value || "lotus")}`, "_blank"));
