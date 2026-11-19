@@ -234,6 +234,13 @@ def test_real_mode_points_honest_when_snapshot_predates_them(monkeypatch):
     """The committed real-aggregate snapshot predates per-cast points:
     real mode must serve an explicit empty list with a regeneration note -
     never fabricated points (the project's honesty rules)."""
+    import json
+    import breachiq.api as api_mod
+    snap = json.loads(json.dumps(api_mod._snapshot()))
+    if "lotus" in snap.get("atlas", {}):
+        for sk in snap["atlas"]["lotus"]["sides"]:
+            snap["atlas"]["lotus"]["sides"][sk].pop("points", None)
+    monkeypatch.setattr(api_mod, "_SNAPSHOT", snap)
     monkeypatch.setenv("BREACHIQ_DATA", "real")
     body = client.get("/api/atlas", params={"map": "lotus"}).json()
     assert body["points"] == []

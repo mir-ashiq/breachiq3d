@@ -403,7 +403,8 @@ def trajectory_point(*, u: float, v: float, u0: float, v0: float,
         "u": round(clamp01(u), 4), "v": round(clamp01(v), 4),
         "u0": round(clamp01(u0), 4), "v0": round(clamp01(v0), 4),
         "azimuth": (None if azimuth is None
-                    else round((azimuth % 360.0 + 360.0) % 360.0, 1)),
+                    else (0.0 if round((azimuth % 360.0 + 360.0) % 360.0, 1) >= 360.0
+                          else round((azimuth % 360.0 + 360.0) % 360.0, 1))),
         "pitch": (None if pitch is None
                   else round(max(-90.0, min(90.0, pitch)), 1)),
         "ability": ability, "class": ability_class,
