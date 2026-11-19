@@ -43,26 +43,30 @@ judges inspect commit histories and PR flows).
 - Sann: reconcile `feat/tactical-minimap-dashboard` with main's `web/`
   (keep the Cloud9 dark aesthetic, tooltip inspection, minimap
   refinements; port anything main lacks) as reviewable slices.
-- **Gate G0 (Nov 22) [PASSED]:** PR #1 through PR #14 merged with flawless 50/50
-  parity on main (13 Sann commits, 13 Ashiq commits); both run the full
-  stack locally (`BREACHIQ_DATA=real` / static server); attestations filled;
-  licenses requested; team registered; authentic architectural blueprints and
-  soaring 3D stadium arches delivered.
+- **Gate G0 (Nov 22) [PASSED]:** PR #1 through PR #15 merged with flawless parity
+  on main; both run the full stack locally (`BREACHIQ_DATA=real` / static server);
+  attestations filled; licenses requested; team registered; authentic architectural
+  blueprints and soaring 3D stadium arches delivered.
 
 ### Phase 1 — Vertical slice to office-hours grade (Nov 23 – Dec 8) — [IN PROGRESS // AHEAD OF SCHEDULE]
 
-- Ashiq: landing-estimate validation vs damage events (method + confidence bands);
+- Ashiq (`@mir-ashiq`): landing-estimate validation vs damage events (method + confidence bands);
   filter-rail API params (`team`, `player`, `agent`, `side`, `patch`, `data=real`)
   across atlas/operator/lineups; `/api/brief.pdf` one-page export engine; published
   benchmarks in README (< 1.5 s/series, RSS cap); 160GB official GRID corpus
-  ingested (28 Cloud9 series, 1,404 rounds, 48,250 utility casts).
-- Sann: filter rail UI on the OpenAPI contract with dynamic player-to-agent linking;
-  VCT tournament standard radar minimap with class-distinct physical AoE signatures
-  (Smoke 5m cloud, Recon dual sonar rings, Placeable hazard diamond, Stall spiked denial,
-  Flash 8-ray starburst); 3D Ballistic Trajectory Holo-Stage with isometric floor
-  grid, vertical laser drop-lines, apex height tags, and 4 corner elevation towers;
-  60-second cold-start onboarding tour; tooltip and keyboard-shortcut polish;
-  PDF export buttons.
+  ingested (28 Cloud9 series, 1,404 rounds, 48,250 utility casts); next: Live GRID
+  GraphQL/REST API adapter and multi-series query pipeline.
+- Sann (`@steavengalang`):
+  - **v0.3 Tactical UI/UX Overhaul & Synchronized Spatial Filtering:**
+    - Single reactive state store eliminating filter desync across all 6 panels.
+    - True-to-scale VALORANT architectural corridors and plant zones in 2D and 3D.
+    - Soaring Stadium 3D perspective with multi-pass luminous trajectory ribbons.
+    - Map-aware Site Execute Tempo with 3-tier timing bars (Fast Rush, Default, Late).
+    - Human-readable AI counter-brief callout cards (`[COUNTER UTILITY]`, `[LINEUP ALERT]`, `[SNIPER THREAT]`).
+    - Weapon / Operator threat leaderboard with sightlines on active map.
+    - Full ability matrix expandable drawer with search and sorting.
+    - Export Scouting Brief modal with Markdown / print layout & Data Audit modal.
+  - Next: Round-by-Round Timeline Scrubber & Replay Playback UI, 2-Minute Demo Video production.
 - **Gate G1 (Dec 8) [TARGET]:** one map end-to-end; "how does this opponent
   execute A-site?" answered in ≤ 3 clicks; benchmarks published; demo
   rehearsed once. Dec 9 office hours: demo, calibration questions,
