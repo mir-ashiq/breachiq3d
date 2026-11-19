@@ -22,6 +22,35 @@
   true author). Never push directly to main.
 - The other track's lead reviews every PR before merge.
 
+## Branch protection: enforced, not conventional — applies to the AI agent too
+
+`main` is protected on GitHub: a pull request is required, the `test`
+CI job (tests + data-leak audit + pipeline verification) must pass,
+the PR branch must be up to date with main, linear history is required,
+administrators are included, and force pushes and branch deletions are
+disabled. Nobody — neither member nor the AI agent — can land a commit
+on `main` any other way.
+
+The flow for every change, no exceptions:
+
+1. Branch from `main`: `feat/...`, `fix/...`, `docs/...`, `chore/...`.
+2. Push the branch and open a PR (draft PRs for work in progress).
+3. CI runs on the PR and must be green before merging.
+4. Rebase-merge only (squash is disabled; see the attribution rule above).
+5. Delete the branch after merge.
+
+AI-agent contributions follow exactly the same path: the agent works on
+branches, opens PRs, waits for green CI, and merges through the same
+gate — with AI assistance recorded per feature in `AI_SHOWCASE.md`.
+Cross-track review remains the team convention for human PRs; it is
+requested in practice but not hard-required by the protection rule, so
+one available member is never blocked from landing a fix.
+
+Recovery note: if the gate ever blocks legitimate recovery work (e.g.
+an emergency revert), a repo admin can lift protection in Settings →
+Branches — do it deliberately, restore it immediately after, and say
+so in the PR that used the window.
+
 ## Feature freeze (week 6, per ROADMAP)
 
 After the freeze, only bugfixes and polish merge. Exceptions require BOTH
