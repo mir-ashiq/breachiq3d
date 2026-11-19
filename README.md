@@ -6,6 +6,9 @@
 
 Category 1 · Cloud9 × JetBrains *Sky's The Limit* Hackathon 2026
 
+[![CI](https://github.com/mir-ashiq/breachiq3d/actions/workflows/ci.yml/badge.svg)](https://github.com/mir-ashiq/breachiq3d/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 `tests: 41 passed` · `python 3.12` · `no build step` · `SYNTHETIC demo data`
 
 </div>
