@@ -1,13 +1,20 @@
 /* BreachIQ 3D dashboard — no build step, no framework, works offline.
-   Views: 1 atlas / 2 operator / 3 pacing; keyboard shortcut map in the
-   onboarding tour. Polls every 30s so data never looks stale. */
+   Views: 1 atlas / 2 operator / 3 pacing; keyboard shortcuts in the
+   onboarding tour. In API mode it polls every 30s; in demo mode
+   (GitHub Pages or ?demo=1) it renders a static snapshot. */
 "use strict";
 
 const $ = (id) => document.getElementById(id);
 const API = window.location.origin;
+const DEMO = new URLSearchParams(location.search).has("demo")
+  || location.hostname.endsWith("github.io");
+let DEMO_DATA = null;
+
 const ZONES = { a: [0.05, 0.05, 0.45, 0.45], b: [0.55, 0.05, 0.95, 0.45],
                 c: [0.3, 0.55, 0.7, 0.95], mid: [0.45, 0.35, 0.6, 0.65] };
 const layers = { placeable: true, recon: true, smoke: true, stall: true, flash: false };
+const CLASS_COLORS = { placeable: "#ffd166", recon: "#8ecae6", smoke: "#a78bfa",
+                       stall: "#f28482", flash: "#f95738", other: "#9aa5b1" };
 
 /* ---------------- onboarding (60-second cold start) ---------------- */
 function showOnboarding(force) {
@@ -21,9 +28,23 @@ function hideOnboarding() {
 
 /* ---------------- fetch with error/empty states ---------------- */
 async function get(path) {
+  if (DEMO) return demoRoute(path);
   const res = await fetch(API + path);
   if (!res.ok) throw new Error(`${path} -> HTTP ${res.status}`);
   return res.json();
+}
+function demoRoute(path) {
+  const url = new URL(path, "http://x");
+  const map = url.searchParams.get("map");
+  if (path.startsWith("/api/meta")) return DEMO_DATA.meta;
+  if (path.startsWith("/api/atlas")) {
+    if (!(map in DEMO_DATA.atlas)) throw new Error(`unknown map: ${map}`);
+    return DEMO_DATA.atlas[map];
+  }
+  if (path.startsWith("/api/operator")) return DEMO_DATA.operator;
+  if (path.startsWith("/api/pacing")) return DEMO_DATA.pacing;
+  if (path.startsWith("/api/lineups")) return DEMO_DATA.lineups;
+  throw new Error(`no demo route for ${path}`);
 }
 function setState(el, kind, msg) {
   el.innerHTML = `<div class="state ${kind === "error" ? "error" : ""}">${msg}</div>`;
@@ -36,7 +57,7 @@ function heatColor(t) {
   return scale.getPropertyValue(tiers[Math.min(3, Math.floor(t * 4))]).trim();
 }
 
-function drawMinimap(atlas) {
+function drawMinimap(atlas, lineups) {
   const canvas = $("minimap"), ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "#0a0e14";
@@ -57,6 +78,28 @@ function drawMinimap(atlas) {
       ctx.font = "12px monospace";
       ctx.fillText(`${ability.ability} ${count}`, x0 * canvas.width + 6, y0 * canvas.height + 16);
     }
+  }
+  // cast points: individual labeled ESTIMATES (dots)
+  for (const p of atlas.points || []) {
+    if (layers[p.class] === false) continue;
+    ctx.beginPath();
+    ctx.fillStyle = CLASS_COLORS[p.class] || CLASS_COLORS.other;
+    ctx.globalAlpha = 0.35 + 0.5 * (p.confidence ?? 1);
+    ctx.arc(p.u * canvas.width, p.v * canvas.height, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // repeated lineups on this map: star + repeat count
+  for (const l of (lineups || []).filter(l => l.map === atlas.map_selected)) {
+    if (!l.u && !l.v) continue;
+    ctx.strokeStyle = "#ffd166";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(l.u * canvas.width, l.v * canvas.height, 9, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#ffd166";
+    ctx.font = "bold 13px monospace";
+    ctx.fillText(`★${l.repeats}`, l.u * canvas.width + 12, l.v * canvas.height - 8);
   }
   ctx.strokeStyle = "#2a3547";
   for (const [x0, y0, x1, y1] of Object.values(ZONES)) {
@@ -81,15 +124,18 @@ function renderEvidence(atlas) {
 }
 
 async function loadAtlas() {
-  const el = $("map-card");
   try {
     const map = $("f-map").value || "split";
-    const atlas = await get(`/api/atlas?map=${encodeURIComponent(map)}`);
-    if (!atlas.abilities.length) {
+    const [atlas, lineupsData] = await Promise.all([
+      get(`/api/atlas?map=${encodeURIComponent(map)}`),
+      get("/api/lineups").catch(() => ({ lineups: [] })),
+    ]);
+    atlas.map_selected = map;
+    if (!atlas.abilities.length && !(atlas.points || []).length) {
       setState($("evidence"), "empty", "no casts match these filters");
       return;
     }
-    drawMinimap(atlas);
+    drawMinimap(atlas, lineupsData.lineups);
     renderEvidence(atlas);
     $("map-note").textContent = `${atlas.rounds} rounds · ${map}`;
   } catch (err) {
@@ -103,14 +149,32 @@ async function loadOperator() {
   try {
     const op = await get("/api/operator");
     if (!op.players.length) { setState(el, "empty", "no operator data in range"); return; }
-    el.innerHTML = op.players.map(p => `
+    el.innerHTML = op.players.filter(p => p.operator_buys > 0).map(p => `
       <div class="row">
         <span>${p.player} <span style="color:var(--text-dim)">(${p.agent})</span></span>
         <span class="count buy">${p.buy_rate}</span>
         <span class="count">0-20s: ${p.hold_timing["0-20s"]} · 20-40s: ${p.hold_timing["20-40s"]}</span>
-      </div>`).join("");
+      </div>`).join("") || `<div class="state">no operator purchases in this corpus</div>`;
   } catch (err) {
     setState(el, "error", `failed to load operator data: ${err.message}`);
+  }
+}
+
+/* ---------------- lineups ---------------- */
+async function loadLineups() {
+  const el = $("lineups");
+  try {
+    const data = await get("/api/lineups");
+    const rows = data.lineups || [];
+    if (!rows.length) { setState(el, "empty", "no lineup reached the 3-round repeat threshold"); return; }
+    el.innerHTML = rows.slice(0, 10).map(l => `
+      <div class="row">
+        <span>${l.ability} <span style="color:var(--text-dim)">· ${l.map}</span></span>
+        <span class="count buy">★ ${l.repeats} rounds</span>
+        <span class="count">aim ${l.aim_azimuth_deg}° · conf ${l.avg_confidence}</span>
+      </div>`).join("");
+  } catch (err) {
+    setState(el, "error", `failed to load lineups: ${err.message}`);
   }
 }
 
@@ -160,9 +224,22 @@ function renderToggles() {
 }
 
 /* ---------------- boot, polling, shortcuts ---------------- */
-async function loadAll() { await Promise.all([loadAtlas(), loadOperator(), loadPacing(), loadCues()]); }
+async function loadAll() {
+  await Promise.all([loadAtlas(), loadOperator(), loadLineups(), loadPacing(), loadCues()]);
+}
 
 async function boot() {
+  if (DEMO) {
+    $("demo-banner").classList.remove("hidden");
+    $("btn-brief").disabled = true;
+    try {
+      const res = await fetch("demo-data.json");
+      DEMO_DATA = await res.json();
+    } catch (err) {
+      setState($("evidence"), "error", `demo data failed to load: ${err.message}`);
+      return;
+    }
+  }
   // maps come from meta (SYNTHETIC demo corpus)
   try {
     const meta = await get("/api/meta");
@@ -178,8 +255,7 @@ async function boot() {
   $("btn-start").addEventListener("click", hideOnboarding);
   showOnboarding();
   await loadAll();
-  // poll: data stays fresh without manual refresh
-  setInterval(loadAll, 30000);
+  if (!DEMO) setInterval(loadAll, 30000);  // poll only in API mode
 }
 
 document.addEventListener("keydown", (e) => {
@@ -187,7 +263,7 @@ document.addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   if (k === "r") loadAll();
   else if (k === "?") showOnboarding(true);
-  else if (k === "b") window.open(`${API}/api/brief.pdf?map=${encodeURIComponent($("f-map").value || "split")}`, "_blank");
+  else if (k === "b" && !DEMO) window.open(`${API}/api/brief.pdf?map=${encodeURIComponent($("f-map").value || "split")}`, "_blank");
   else if (k === "1") document.getElementById("map-card").scrollIntoView({ behavior: "smooth" });
   else if (k === "2") document.getElementById("operator").scrollIntoView({ behavior: "smooth" });
   else if (k === "3") document.getElementById("pacing").scrollIntoView({ behavior: "smooth" });

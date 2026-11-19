@@ -23,6 +23,13 @@
     <button id="btn-brief">export brief (PDF)</button>
   </header>
 
+  <div id="demo-banner" class="hidden">
+    <b>Static demo</b> · SYNTHETIC data (no GRID data is redistributed) ·
+    the full API + real-corpus pipeline run locally — see the
+    <a href="https://github.com/mir-ashiq/breachiq3d" target="_blank" rel="noopener">README</a>
+    · real-data findings: <a href="https://github.com/mir-ashiq/breachiq3d/blob/main/docs/FINDINGS.md" target="_blank" rel="noopener">docs/FINDINGS.md</a>
+  </div>
+
   <main>
     <div class="card" id="map-card">
       <h2>Utility atlas <span id="layer-toggles"></span></h2>
@@ -32,6 +39,7 @@
         <span><i class="chip" style="background:var(--heat-2)"></i>mid</span>
         <span><i class="chip" style="background:var(--heat-3)"></i>high</span>
         <span><i class="chip" style="background:var(--heat-4)"></i>extreme</span>
+        <span>· dots = cast points · ★ = repeated lineup</span>
         <span id="map-note"></span>
       </div>
     </div>
@@ -47,6 +55,11 @@
         <h2>Counter-brief (anti-strat)</h2>
         <div id="cues"><div class="state">loading…</div></div>
       </div>
+    </div>
+
+    <div class="card" id="lineup-card">
+      <h2>Repeated lineups <span class="badge estimate">same spot, same aim, 3+ rounds</span></h2>
+      <div id="lineups" class="rows"><div class="state">loading…</div></div>
     </div>
 
     <div class="card" id="pacing-card">
@@ -68,6 +81,7 @@
     <ol>
       <li>Pick a <b>map</b> in the header — the atlas shows where utility lands, by frequency tier.</li>
       <li>Check the <b>evidence bar</b> under the map: every number carries its sample size.</li>
+      <li>Hover the <b>repeated lineups</b>: set plays you can pre-aim, with repeat counts.</li>
       <li>Read the <b>counter-brief</b> (right): prescriptive cues, not stats.</li>
       <li>Export a one-page <b>PDF brief</b> for between scrims.</li>
     </ol>

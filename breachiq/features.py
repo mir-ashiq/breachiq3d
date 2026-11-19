@@ -67,7 +67,11 @@ class EvidenceBar:
 class UtilityAtlas:
     """Utility placement atlas with placeable-first taxonomy ordering."""
 
-    def __init__(self):
+    def __init__(self, class_resolver=None):
+        # resolver maps an ability id -> taxonomy class; defaults to the
+        # synthetic-fixture names, real GRID ids use corpus.ability_class
+        self._resolver = class_resolver or (
+            lambda a: ABILITY_CLASS.get(a, "other"))
         self.zone_counts: dict[tuple[str, str], int] = {}  # (zone, ability) -> casts
         self.total_rounds = 0
         self.matches = 0
@@ -78,29 +82,33 @@ class UtilityAtlas:
         self.total_rounds += 1
         self.patches.add(patch)
         for cast in casts:
-            zone = zone_of(cast["u"], cast["v"])
-            if zone is None:
-                continue
+            zone = zone_of(cast["u"], cast["v"]) or "wide"
             ability = cast.get("ability", "unknown")
             self.zone_counts[(zone, ability)] = self.zone_counts.get((zone, ability), 0) + 1
             q = cast.get("quality", "ok")
             self.quality[q] = self.quality.get(q, 0) + 1
 
     def result(self, matches: int = 0, coverage: str = "") -> dict:
+        # group real ability ids by class, then emit in the brief's order
+        by_class: dict[str, dict[str, dict[str, int]]] = {}
+        for (zone, ability), count in self.zone_counts.items():
+            cls = self._resolver(ability)
+            by_class.setdefault(cls, {}).setdefault(ability, {})[zone] = count
+        order = [c for c, _ in UTILITY_TAXONOMY] + ["other"]
         ordered = []
-        for cls, abilities in UTILITY_TAXONOMY:  # brief order, never alphabetical
-            for ability in abilities:
-                per_zone = {z: c for (z, a), c in self.zone_counts.items() if a == ability}
-                if per_zone:
-                    freq = sum(per_zone.values())
-                    ev = EvidenceBar(
-                        rounds=self.total_rounds, matches=matches or self.matches,
-                        frequency=freq, patch=','.join(sorted(p for p in self.patches if p)),
-                        coverage=coverage, quality_mix=dict(self.quality))
-                    ordered.append({"ability": ability, "class": cls,
-                                    "zones": per_zone, "hard_count": ev.hard_count,
-                                    "evidence": ev.as_dict()})
-        return {"taxonomy_order": [c for c, _ in UTILITY_TAXONOMY],
+        for cls in order:
+            for ability in sorted(by_class.get(cls, {}),
+                                  key=lambda a: -sum(by_class[cls][a].values())):
+                per_zone = by_class[cls][ability]
+                freq = sum(per_zone.values())
+                ev = EvidenceBar(
+                    rounds=self.total_rounds, matches=matches or self.matches,
+                    frequency=freq, patch=','.join(sorted(p for p in self.patches if p)),
+                    coverage=coverage, quality_mix=dict(self.quality))
+                ordered.append({"ability": ability, "class": cls,
+                                "zones": per_zone, "hard_count": ev.hard_count,
+                                "evidence": ev.as_dict()})
+        return {"taxonomy_order": order,
                 "abilities": ordered, "rounds": self.total_rounds}
 
 
@@ -117,16 +125,20 @@ class OperatorFingerprint:
         self.purchases: dict[tuple[str, str], int] = {}   # (player, agent) -> ops bought
         self.rounds_by_player: dict[str, int] = {}
         self.holds: dict[str, list[float]] = {}            # player -> hold start (s)
+        self.hold_positions: dict[str, list] = {}          # player -> [(u, v)]
         self.rotation: dict[str, set[str]] = {}            # agent -> players seen
 
     def add_round(self, *, player: str, agent: str, bought_operator: bool,
-                  hold_start_s: float | None = None) -> None:
+                  hold_start_s: float | None = None,
+                  hold_position: tuple[float, float] | None = None) -> None:
         self.rounds_by_player[player] = self.rounds_by_player.get(player, 0) + 1
         if bought_operator:
             self.purchases[(player, agent)] = self.purchases.get((player, agent), 0) + 1
         self.rotation.setdefault(agent, set()).add(player)
         if hold_start_s is not None:
             self.holds.setdefault(player, []).append(hold_start_s)
+        if hold_position is not None:
+            self.hold_positions.setdefault(player, []).append(hold_position)
 
     @staticmethod
     def _timing_bucket(t: float) -> str:
@@ -149,6 +161,9 @@ class OperatorFingerprint:
                 "operator_buys": count,
                 "buy_rate": f"{count}/{rounds} rounds",
                 "hold_timing": histogram,
+                "hold_positions": [
+                    {"u": round(u, 3), "v": round(v, 3)}
+                    for u, v in self.hold_positions.get(player, [])],
             })
         players.sort(key=lambda p: -p["operator_buys"])
         return {"players": players,
@@ -193,6 +208,117 @@ class ExecutePacing:
                 "eco_first_death_zones": collapse,
             }
         return {"sites": out}
+
+
+# ---------------------------------------------------------------- lineups
+class LineupDetector:
+    """Detect repeated utility lineups: same ability, cast from ~the same
+    spot with ~the same aim, across different rounds/matches.
+
+    A lineup is coaching gold ("they always flash over this box from
+    lineup X"). Parameters are estimates: 200 cm positional tolerance and
+    10 degrees aim tolerance, counted only when seen in >= min_repeats
+    DISTINCT rounds.
+    """
+
+    POS_TOL_CM = 200.0
+    AIM_TOL_DEG = 10.0
+    MIN_REPEATS = 3
+
+    def __init__(self, pos_tol_cm: float | None = None,
+                 aim_tol_deg: float | None = None, min_repeats: int | None = None):
+        self.pos_tol = pos_tol_cm or self.POS_TOL_CM
+        self.aim_tol = aim_tol_deg or self.AIM_TOL_DEG
+        self.min_repeats = min_repeats or self.MIN_REPEATS
+        self._clusters: list[dict] = []
+
+    def add(self, *, ability: str, map: str, position: dict, view: dict,
+            round_key: str, confidence: float = 1.0) -> None:
+        """Register one cast. round_key identifies the round (series+game+no)."""
+        import math
+        az = math.degrees(math.atan2(view["y"], view["x"]))
+        for cl in self._clusters:
+            if cl["ability"] != ability or cl["map"] != map:
+                continue
+            d = math.hypot(position["x"] - cl["x"], position["y"] - cl["y"])
+            da = (az - cl["az"] + 180.0) % 360.0 - 180.0
+            if d <= self.pos_tol and abs(da) <= self.aim_tol:
+                cl["rounds"].add(round_key)
+                cl["n"] += 1
+                cl["conf_sum"] += confidence
+                return
+        self._clusters.append({
+            "ability": ability, "map": map,
+            "x": position["x"], "y": position["y"], "az": az,
+            "view": dict(view),
+            "rounds": {round_key}, "n": 1, "conf_sum": confidence,
+        })
+
+    def result(self) -> list[dict]:
+        out = []
+        for cl in self._clusters:
+            if len(cl["rounds"]) < self.min_repeats:
+                continue
+            out.append({
+                "ability": cl["ability"], "map": cl["map"],
+                "repeats": len(cl["rounds"]),
+                "total_casts": cl["n"],
+                "position": {"x": round(cl["x"], 1), "y": round(cl["y"], 1)},
+                "aim_azimuth_deg": round(cl["az"], 1),
+                "avg_confidence": round(cl["conf_sum"] / cl["n"], 3),
+                "is_estimate": True,
+                "note": "repeated cast cluster (position/aim tolerance)",
+            })
+        out.sort(key=lambda r: (-r["repeats"], r["ability"]))
+        return out
+
+
+# ---------------------------------------------------------------- outcomes
+class RoundOutcomes:
+    """How a team wins and loses rounds: sides, win types, pistol
+    conversion, and attack rounds that never planted."""
+
+    def __init__(self):
+        self.rounds: list[dict] = []
+
+    def add_round(self, *, round_no: int, side: str, won: bool,
+                  win_type: str | None, planted: bool,
+                  economy: str = "unknown") -> None:
+        self.rounds.append({"round_no": round_no, "side": side, "won": won,
+                            "win_type": win_type, "planted": planted,
+                            "economy": economy})
+
+    def result(self) -> dict:
+        by_side = {}
+        for side in sorted({r["side"] for r in self.rounds}):
+            rows = [r for r in self.rounds if r["side"] == side]
+            wins = [r for r in rows if r["won"]]
+            win_types: dict[str, int] = {}
+            for r in wins:
+                win_types[r["win_type"] or "unknown"] = \
+                    win_types.get(r["win_type"] or "unknown", 0) + 1
+            atk = [r for r in rows if r["side"] == "attacker"]
+            no_plant = [r for r in atk if not r["planted"]]
+            by_side[side] = {
+                "rounds": len(rows),
+                "won": len(wins),
+                "win_rate": f"{len(wins)}/{len(rows)}",
+                "win_types": win_types,
+                "attack_no_plant": f"{len(no_plant)}/{len(atk)}" if atk else None,
+            }
+        # pistol conversion: won the round right after a won pistol
+        pistol_won_next = pistol_next = 0
+        by_no = sorted(self.rounds, key=lambda r: r["round_no"])
+        for prev, cur in zip(by_no, by_no[1:]):
+            if prev["round_no"] in (1, 13) and prev["won"]:
+                pistol_next += 1
+                pistol_won_next += 1 if cur["won"] else 0
+        return {
+            "sides": by_side,
+            "pistol_conversion": (f"{pistol_won_next}/{pistol_next}"
+                                  if pistol_next else None),
+            "rounds": len(self.rounds),
+        }
 
 
 # ---------------------------------------------------------------- briefs

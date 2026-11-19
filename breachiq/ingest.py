@@ -96,9 +96,23 @@ class RollbackTracker:
     def feed(self, event: dict) -> None:
         etype = str(event.get("type") or event.get("eventType") or "")
         if etype in self.restart_event_types:
-            game_id = event.get("gameId") or event.get("game_id")
+            game_id = (event.get("gameId") or event.get("game_id")
+                       or self._nested_game_id(event))
             if game_id:
                 self.rolled_back_games.add(str(game_id))
+
+    @staticmethod
+    def _nested_game_id(event: dict) -> str | None:
+        """GRID feeds carry the game id on the actor/target of the event."""
+        for side in ("actor", "target"):
+            node = event.get(side) or {}
+            if node.get("type") == "game" and node.get("id"):
+                return str(node["id"])
+        # some restart events put the game in the seriesStateDelta
+        for g in (event.get("seriesStateDelta") or {}).get("games", []):
+            if g.get("id"):
+                return str(g["id"])
+        return None
 
     def is_valid(self, game_id: str | None) -> bool:
         return game_id is not None and str(game_id) not in self.rolled_back_games
