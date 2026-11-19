@@ -71,3 +71,38 @@ def test_outcomes_and_pacing_present():
     d = _load()
     assert d["outcomes"]["sides"]["attacker"]["win_rate"]
     assert len(d["pacing"]["sites"]) == 12
+
+
+POINT_FIELDS = ("u", "v", "u0", "v0", "azimuth", "pitch", "ability",
+                "class", "player", "round", "quality", "confidence",
+                "is_estimate", "patch")
+
+
+def test_snapshot_points_follow_contract_when_present():
+    """Forward contract for `make findings` rebuilds: sides that carry
+    per-cast trajectory points (docs/GUIDE.md section 3A) must match the
+    exact shape the minimap arcs and tooltips read. The committed snapshot
+    predates points - absent stays absent (never fabricated); the first
+    rebuild against the corpus flips this from 0 to thousands of points
+    and the assertions below hold either way."""
+    d = _load()
+    seen = 0
+    for m, entry in d["atlas"].items():
+        for sk, s in entry["sides"].items():
+            pts = s.get("points")
+            if not pts:
+                continue
+            assert s.get("points_total", 0) >= len(pts) > 0
+            for p in pts:
+                for k in POINT_FIELDS:
+                    assert k in p, f"{m}/{sk}: point missing {k!r}"
+                for k in ("u", "v", "u0", "v0"):
+                    assert 0.0 <= p[k] <= 1.0
+                if p["azimuth"] is not None:
+                    assert 0.0 <= p["azimuth"] < 360.0
+                if p["pitch"] is not None:
+                    assert -90.0 <= p["pitch"] <= 90.0
+                assert p["is_estimate"] is True
+            seen += len(pts)
+    # 0 = the committed pre-points snapshot (expected today); > 0 = rebuilt
+    print(f"snapshot carries {seen} per-cast points")

@@ -25,6 +25,20 @@ from breachiq.corpus import (Corpus, SeriesScanner, ability_class,
 
 REPO = Path(__file__).resolve().parent.parent
 
+# static-file budget for per-cast points (GUIDE.md section 3A); an even
+# stride over scan order keeps the sample spread across series and rounds,
+# and points_total carries the true count for the evidence bar
+MAX_SIDE_POINTS = 160
+
+
+def _side_points(pts: list[dict]) -> dict:
+    """Sampled per-cast points for one (map, side) of the demo snapshot."""
+    if len(pts) > MAX_SIDE_POINTS:
+        step = len(pts) / MAX_SIDE_POINTS
+        return {"points": [pts[int(i * step)] for i in range(MAX_SIDE_POINTS)],
+                "points_total": len(pts)}
+    return {"points": pts, "points_total": len(pts)}
+
 
 def parse_ts(iso: str) -> float:
     return datetime.fromisoformat(iso.replace("Z", "+00:00")).timestamp()
@@ -74,6 +88,17 @@ def main() -> None:
     matches_by_series: dict[str, int] = {}
     exclusion_hits: list[str] = []
     no_supp = 0
+
+    # game id -> patch (meta/games.csv), for per-cast patch tagging
+    patch_by_game: dict[str, str] = {}
+    for g in corpus.games():
+        gid = str(g.get("game_id") or g.get("id") or "")
+        patch_by_game[gid] = g.get("patch", "") or ""
+
+    # per-cast trajectory points (docs/GUIDE.md section 3A), per map+side;
+    # "all" mirrors the density convention: attacker+defender casts only
+    points: dict[str, dict[str, list[dict]]] = collections.defaultdict(
+        lambda: {"all": [], "attacker": [], "defender": []})
 
     for i, row in enumerate(rows, 1):
         sid = row["series_id"]
@@ -138,6 +163,25 @@ def main() -> None:
                             position=c["position"], view=c["view"],
                             round_key=f"{sid}:{c['game_id'][:8]}:{c['round_no']}",
                             confidence=0.6 if c["quality"] != "ok" else 1.0)
+                # per-cast trajectory point: caster position, aim angles,
+                # landing ESTIMATE - the frontend contract (GUIDE.md 3A)
+                mb = map_bounds(c["map"])
+                u0, v0 = spatial.normalize_position(c["position"], mb)
+                landing = spatial.project_landing(
+                    c["position"], c["view"], c["ability_class"], mb,
+                    quality=c["quality"])
+                pt = features.trajectory_point(
+                    u=landing.u, v=landing.v, u0=u0, v0=v0,
+                    azimuth=spatial.azimuth_deg(c["view"]),
+                    pitch=spatial.pitch_deg(c["view"]),
+                    ability=c["ability"], ability_class=c["ability_class"],
+                    player=pname, round_no=c["round_no"],
+                    quality=c["quality"], confidence=landing.confidence,
+                    patch=patch_by_game.get(str(c["game_id"]), ""))
+                if c["side"] in ("attacker", "defender"):
+                    side_pts = points[c["map"]]
+                    side_pts["all"].append(pt)
+                    side_pts[c["side"]].append(pt)
 
         for r in scan["rounds"]:
             if str(r["game_id"]) in scan.get("rolled_back_games", []):
@@ -323,6 +367,10 @@ def main() -> None:
       "map bounds calibrated from each game's `map.bounds`.")
     A("- Landing locations are never claimed: GRID provides none, and "
       "every landing view in the app is a labeled ESTIMATE.")
+    A("- The demo snapshot carries per-cast trajectory points (caster "
+      "position, aim, landing estimate; sampled to "
+      f"{MAX_SIDE_POINTS} per map-side with the true count in "
+      "`points_total`) for the minimap arcs and hover tooltips.")
     A("")
 
     out = Path(args.out)
@@ -361,6 +409,7 @@ def main() -> None:
                         **sr.result(matches=games_count,
                                     coverage=f"real GRID corpus, {args.team} "
                                              f"series ({sk})"),
+                        **_side_points(points.get(m, {}).get(sk, [])),
                         "density": [
                             [round((bx + 0.5) / DENSITY_BINS, 4),
                              round((by + 0.5) / DENSITY_BINS, 4), n]
@@ -407,9 +456,14 @@ def main() -> None:
         }
         demo_path = Path(args.demo_out)
         demo_path.write_text(json.dumps(demo))
+        total_pts = sum(len(s["points"]) for m in demo_atlas.values()
+                        for s in m["sides"].values())
+        total_pts_all = sum(s.get("points_total", 0) for m in demo_atlas.values()
+                            for s in m["sides"].values())
         print(f"wrote {demo_path} ({demo_path.stat().st_size} bytes, "
               f"{len(demo_atlas)} maps, "
-              f"{len(demo['lineups']['lineups'])} lineups)")
+              f"{len(demo['lineups']['lineups'])} lineups, "
+              f"{total_pts} points sampled of {total_pts_all} casts)")
 
 
 if __name__ == "__main__":

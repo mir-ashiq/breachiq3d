@@ -60,12 +60,18 @@ def _data() -> dict:
 
 
 def _atlas(data: dict, map_name: str, side: str = "all",
-           ability: str = "") -> dict:
+           ability: str = "", patch: str = "") -> dict:
     atlas = features.UtilityAtlas()
     by_round: dict[int, list[dict]] = {}
     points: list[dict] = []
+    bounds = spatial.BOUNDS[map_name]
+    rounds_here = [r for r in data["rounds"]
+                   if r.get("map", map_name) == map_name
+                   and (not patch or r.get("patch", "") == patch)]
+    keep_rounds = {r["round"] for r in rounds_here}
+    round_patch = {r["round"]: r.get("patch", "") for r in rounds_here}
     for cast in data["casts"]:
-        if cast["map"] != map_name:
+        if cast["map"] != map_name or cast["round"] not in keep_rounds:
             continue
         if side in ("attacker", "defender") and cast.get("side") != side:
             continue
@@ -74,17 +80,27 @@ def _atlas(data: dict, map_name: str, side: str = "all",
         state = spatial.cast_state(cast)
         if state is None:
             continue
-        u, v = spatial.normalize_position(state["position"], spatial.BOUNDS[map_name])
+        u, v = spatial.normalize_position(state["position"], bounds)
         landing = spatial.estimate_landing(cast, features.ABILITY_CLASS.get(cast["ability"], "recon"),
-                                           spatial.BOUNDS[map_name])
+                                           bounds)
         entry = {
             "u": landing.u if landing else u, "v": landing.v if landing else v,
             "ability": cast["ability"], "quality": state["quality"],
             "confidence": landing.confidence if landing else None,
             "is_estimate": True}
         by_round.setdefault(cast["round"], []).append(entry)
-        points.append({**entry, "class": features.ABILITY_CLASS.get(cast["ability"], "other")})
-    rounds_here = [r for r in data["rounds"] if r.get("map", map_name) == map_name]
+        # per-cast trajectory point in the frontend contract shape
+        # (docs/GUIDE.md section 3A): caster pos, aim angles, player/round
+        points.append(features.trajectory_point(
+            u=entry["u"], v=entry["v"], u0=u, v0=v,
+            azimuth=spatial.azimuth_deg(state["view"]) if state.get("view") else None,
+            pitch=spatial.pitch_deg(state["view"]) if state.get("view") else None,
+            ability=cast["ability"],
+            ability_class=features.ABILITY_CLASS.get(cast["ability"], "other"),
+            player=cast.get("player_id", ""),
+            round_no=cast.get("round"), quality=state["quality"],
+            confidence=entry["confidence"],
+            patch=round_patch.get(cast["round"], "")))
     for r in rounds_here:
         atlas.add_round(by_round.get(r["round"], []), patch=r.get("patch", ""))
     result = atlas.result(matches=len(rounds_here),
@@ -93,13 +109,14 @@ def _atlas(data: dict, map_name: str, side: str = "all",
     result["points"] = points
     result["map_selected"] = map_name
     # real calibrated bounds (m) for the scale bar + 3D aspect ratio
-    b = spatial.BOUNDS[map_name]
+    b = bounds
     result["bounds_m"] = {"w": round((b.x_max - b.x_min) / 100.0, 1),
                           "h": round((b.y_max - b.y_min) / 100.0, 1)}
     return result
 
 
-def _atlas_real(map_name: str, side: str = "all", ability: str = "") -> dict:
+def _atlas_real(map_name: str, side: str = "all", ability: str = "",
+                patch: str = "") -> dict:
     snap = _snapshot()
     entry = snap["atlas"].get(map_name)
     if entry is None:
@@ -109,9 +126,27 @@ def _atlas_real(map_name: str, side: str = "all", ability: str = "") -> dict:
     # not the map total
     out = {**s, "map_selected": map_name,
            "bounds_m": snap.get("bounds_m", {}).get(map_name)}
+    pts = s.get("points")
+    if pts is None:
+        # snapshot predates per-cast points (GUIDE.md section 3A): serve an
+        # explicit empty list - never fabricate points from aggregates.
+        # Rebuild against the corpus (`make findings`) to populate them.
+        pts = []
+        out["points_note"] = ("this snapshot predates per-cast trajectory "
+                              "points; regenerate with `make findings` "
+                              "against the GRID corpus")
+    if patch:
+        pts = [p for p in pts if p.get("patch", "") == patch]
+        out["patch_scope"] = ("points only - abilities/density stay "
+                              "all-patch aggregates")
     if ability:
         out = {**out, "abilities": [a for a in s["abilities"]
                                     if a["ability"] == ability]}
+        pts = [p for p in pts if p.get("ability") == ability]
+    out["points"] = pts
+    if patch or ability:
+        # the true cast count is only honest on an unfiltered view
+        out.pop("points_total", None)
     return out
 
 
@@ -132,17 +167,28 @@ def meta() -> dict:
     return {**_data()["meta"], "source": "synthetic"}
 
 
+# docs/GUIDE.md section 3A spells the side values "attack/defense"; the
+# dashboard and the committed snapshot use "attacker/defender". Accept both
+# spellings (aliasing) so the documented contract and the UI agree.
+_SIDE_ALIASES = {"attack": "attacker", "defense": "defender"}
+
+
 @app.get("/api/atlas")
 def atlas(map: str = Query(..., description="map name"),
-          side: str = Query("all", description="all | attacker | defender"),
-          ability: str = Query("", description="exact ability id filter")) -> dict:
+          side: str = Query("all", description="all | attacker | defender "
+                           "(attack/defense aliases accepted)"),
+          ability: str = Query("", description="exact ability id filter"),
+          patch: str = Query("", description="patch filter, e.g. 11.08 "
+                             "(filters rounds in synthetic mode; points "
+                             "only in real-aggregate mode)")) -> dict:
+    side = _SIDE_ALIASES.get(side, side)
     if side not in ("all", "attacker", "defender"):
         raise HTTPException(422, f"invalid side: {side}")
     if _real():
-        return _atlas_real(map, side=side, ability=ability)
+        return _atlas_real(map, side=side, ability=ability, patch=patch)
     if map not in spatial.BOUNDS:
         raise HTTPException(404, f"unknown map: {map}")
-    return _atlas(_data(), map, side=side, ability=ability)
+    return _atlas(_data(), map, side=side, ability=ability, patch=patch)
 
 
 @app.get("/api/operator")

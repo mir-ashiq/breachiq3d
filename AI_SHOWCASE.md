@@ -40,6 +40,28 @@ What we changed by hand: schema rules cross-checked against the supplement
 README; taxonomy order taken verbatim from the official brief.
 Verification: `pytest` 41 passed; `scripts/audit_repo.py` clean.
 
+### 2026-11-19 — backend: GUIDE.md §3A trajectory-point contract
+
+Tool: Z.ai agent (backend track), working from the teammate's written
+integration contract (docs/GUIDE.md).
+Prompt(s): "my friend has done some work so should we … backend is our's
+so that's what we do" — implemented against the guide's §3A response
+schema, not invented.
+What the agent produced: `features.trajectory_point` (single contract
+record shared by both API modes), `spatial.project_landing` (landing math
+extracted so synthetic + real-corpus paths cannot drift), per-cast point
+emission in `scripts/build_findings.py` (patch-tagged, sampled ≤160 per
+map-side with true `points_total`), `/api/atlas` accepting the guide's
+`attack/defense` spellings + `patch` param, 17 new test assertions pinning
+the contract; branch → PR → CI → rebase-merge through the enforced gate.
+What we changed by hand: chose NOT to regenerate `web/demo-data.json` —
+the GRID corpus is no longer on this machine, and fabricating "real"
+per-cast points from aggregates would break the project's honesty rules;
+the real snapshot serves `points: []` + a regeneration note until the
+next `make findings` run against the corpus.
+Verification: `pytest` green locally + CI required check on the PR;
+`scripts/audit_repo.py` clean.
+
 > Replace/extend the day-1 entry with real Junie/Air sessions from the
 > first team work session onward; keep prompts verbatim — judges read these.
 

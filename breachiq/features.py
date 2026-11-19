@@ -373,3 +373,41 @@ def apply_filters(query: dict, record: dict) -> bool:
         elif have != want:
             return False
     return True
+
+
+# ------------------------------------------------------- frontend contract
+def trajectory_point(*, u: float, v: float, u0: float, v0: float,
+                     azimuth: float | None, pitch: float | None,
+                     ability: str, ability_class: str, player: str,
+                     round_no: int | None, quality: str,
+                     confidence: float | None, patch: str = "") -> dict:
+    """One per-cast trajectory record in the exact shape docs/GUIDE.md §3A
+    defines for GET /api/atlas points. Single source of truth shared by the
+    synthetic API path (breachiq/api.py) and the real-corpus snapshot
+    builder (scripts/build_findings.py), so the two modes can never drift.
+
+    u0/v0 are the caster's normalized position; u/v the landing ESTIMATE
+    (GRID records no landing coordinates, so is_estimate is always True —
+    never removed, per the project's honesty rules). All four coordinates
+    are clamped into the minimap frame [0, 1]: a few casts sit just outside
+    the recorded playable bounds and render at the boundary — the same
+    walls-stop-abilities rule the landing projection applies. azimuth is
+    normalized to [0, 360) and pitch clamped to [-90, 90] as the contract
+    demands; both are None when no aim vector survived quality
+    classification.
+    """
+    clamp01 = lambda x: min(1.0, max(0.0, x))  # noqa: E731 - local for clarity
+    return {
+        "u": round(clamp01(u), 4), "v": round(clamp01(v), 4),
+        "u0": round(clamp01(u0), 4), "v0": round(clamp01(v0), 4),
+        "azimuth": (None if azimuth is None
+                    else round((azimuth % 360.0 + 360.0) % 360.0, 1)),
+        "pitch": (None if pitch is None
+                  else round(max(-90.0, min(90.0, pitch)), 1)),
+        "ability": ability, "class": ability_class,
+        "player": player, "round": round_no,
+        "quality": quality,
+        "confidence": None if confidence is None else round(confidence, 3),
+        "is_estimate": True,
+        "patch": patch,
+    }

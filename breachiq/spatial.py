@@ -197,26 +197,27 @@ class LandingEstimate:
     notes: list[str] = field(default_factory=list)
 
 
-def estimate_landing(cast: dict, ability_class: str,
-                     bounds: MapBounds) -> LandingEstimate | None:
-    """Project the aim ray to a landing estimate on the minimap.
+def project_landing(position: dict, view: dict, ability_class: str,
+                    bounds: MapBounds, *, quality: str = QUALITY_OK,
+                    low_rate: bool = False) -> LandingEstimate:
+    """Ray-project a resolved cast (position + unit aim vector) to a
+    landing estimate on the minimap. Shared core of the synthetic path
+    (estimate_landing) and the real-corpus snapshot builder
+    (scripts/build_findings.py) — one landing math, two data sources,
+    so the modes can never disagree.
 
     Confidence is degraded by data quality (quality flags) and by low-rate
     sampling; the label 'estimate' is never removed.
     """
-    state = cast_state(cast)
-    if state is None:
-        return None
-    view = state["view"]
     reach = ABILITY_RANGE.get(ability_class, DEFAULT_RANGE)
     horiz = math.hypot(view["x"], view["y"])
     if horiz <= 1e-6:
         # Straight up/down: lands on the caster position.
-        end = dict(state["position"])
+        end = dict(position)
         notes = ["vertical cast"]
     else:
-        end = {"x": state["position"]["x"] + view["x"] / horiz * reach,
-               "y": state["position"]["y"] + view["y"] / horiz * reach}
+        end = {"x": position["x"] + view["x"] / horiz * reach,
+               "y": position["y"] + view["y"] / horiz * reach}
         notes = []
     u, v = normalize_position(end, bounds)
     # Clamp to playable bounds: a ray that exits the terrain lands at the
@@ -225,13 +226,26 @@ def estimate_landing(cast: dict, ability_class: str,
         u, v = min(1.0, max(0.0, u)), min(1.0, max(0.0, v))
         notes.append("clamped to playable bounds")
     conf = 1.0
-    if state["quality"] != QUALITY_OK:
+    if quality != QUALITY_OK:
         conf *= 0.6
-        notes.append(f"quality={state['quality']} (closer-frame fallback)")
-    if state["low_rate"]:
+        notes.append(f"quality={quality} (closer-frame fallback)")
+    if low_rate:
         conf *= 0.7
         notes.append("low-rate series (1 Hz): down-weighted")
     return LandingEstimate(u=u, v=v, confidence=round(conf, 3), notes=notes)
+
+
+def estimate_landing(cast: dict, ability_class: str,
+                     bounds: MapBounds) -> LandingEstimate | None:
+    """Landing estimate for a raw cast event (frame_before/after pair):
+    resolve the cast-time state, then project. None when no frame
+    survived quality classification."""
+    state = cast_state(cast)
+    if state is None:
+        return None
+    return project_landing(state["position"], state["view"], ability_class,
+                           bounds, quality=state["quality"],
+                           low_rate=state["low_rate"])
 
 
 def lineup_trajectory(*, position: dict, aim_azimuth_deg: float,
