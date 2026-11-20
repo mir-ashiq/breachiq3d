@@ -6,6 +6,7 @@ evidence is exactly the passive-aggregator pattern the brief warns about.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 # ---------------------------------------------------------------- taxonomy
@@ -357,6 +358,182 @@ def counter_brief(atlas: dict, operator: dict) -> list[str]:
     cues.append("Run the Self-Scout view before the match: your own top zone "
                 "is what their coaching staff will prepare against.")
     return cues
+
+
+# severity ranking of brief insights: a coach reads top-down, so the
+# order itself is a claim about what matters most - it must be derived
+# from the evidence, never hard-coded per insight.
+_SEVERITY_ORDER = {"critical": 0, "warning": 1, "note": 2}
+
+
+def _hard_count_split(hard_count: str) -> tuple[int, int]:
+    """"34/231 rounds" -> (34, 231); (0, 0) when unparseable."""
+    m = re.search(r"(\d+)\s*/\s*(\d+)", hard_count or "")
+    return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+
+
+def tactical_brief(atlas: dict, operator: dict, lineups: list[dict],
+                   pacing: dict, map_name: str, side: str = "all") -> dict:
+    """Structured, severity-ranked counter-brief - the anti-strat core.
+
+    Returns headline + insights[], every insight carrying:
+      severity  critical | warning | note   (ranked, deterministic rules)
+      kind      lineup | operator | tempo | utility | method
+      title     short label for chips/lists
+      detail    what the data shows (numbers, never adjectives alone)
+      action    what to do about it on the server
+      evidence  {rounds_seen, sample_rounds, confidence, source}
+                - every number traces to a committed aggregate; source names
+                  the endpoint it came from. No evidence, no insight.
+
+    One builder feeds GET /api/brief (JSON) and /api/brief.pdf, so the
+    dashboard panel and the coach's printed one-pager can never drift.
+    """
+    rounds = int(atlas.get("rounds") or 0)
+    insights: list[dict] = []
+
+    def cov_score(rounds_seen: int, confidence: float | None) -> float:
+        """Deterministic within-severity ordering: coverage first, then
+        detector confidence (unknown confidence counts as neutral)."""
+        coverage = min(1.0, rounds_seen / rounds) if rounds else 0.0
+        conf = 1.0 if confidence is None else max(0.0, min(1.0, confidence))
+        return round(coverage * (0.5 + 0.5 * conf), 4)
+
+    # 1) repeated lineups - the exploit targets (detector floor: 3 rounds)
+    for l in sorted((x for x in lineups
+                     if x.get("map", map_name) == map_name),
+                    key=lambda x: (-int(x.get("repeats") or 0),
+                                   str(x.get("ability"))))[:3]:
+        reps = int(l.get("repeats") or 0)
+        if reps < 3:
+            continue
+        conf = float(l.get("avg_confidence") or 0.0)
+        severity = "critical" if (reps >= 10 and conf >= 0.9) else "warning"
+        insights.append({
+            "severity": severity, "kind": "lineup",
+            "title": f"Repeated lineup: {l['ability']} x{reps}",
+            "detail": (f"{l['ability']} is cast from the same spot in "
+                       f"{reps} rounds (aim "
+                       f"{(l.get('aim_azimuth_deg') or 0):.0f} deg)."),
+            "action": ("Pre-aim the landing spot and deny the line with "
+                       "your own utility before the execute hits."),
+            "evidence": {"rounds_seen": reps, "sample_rounds": rounds,
+                         "confidence": round(conf, 2), "source": "lineups",
+                         "scope": "map"},
+            "score": cov_score(reps, conf),
+        })
+
+    # 2) operator buy concentration - the trade pattern. buy_rate is a
+    # SERIES-wide fraction ("40/962 rounds"): quote that denominator, not
+    # the map rounds, or the evidence mixes scopes.
+    buyers = [p for p in operator.get("players", [])
+              if int(p.get("operator_buys") or 0) > 0]
+    if buyers:
+        top = max(buyers, key=lambda p: int(p.get("operator_buys") or 0))
+        buys = int(top["operator_buys"])
+        _, series_rounds = _hard_count_split(top.get("buy_rate", ""))
+        sample = series_rounds or rounds
+        if sample:
+            share = buys / sample
+            insights.append({
+                "severity": "warning" if share >= 0.15 else "note",
+                "kind": "operator",
+                "title": f"{top['player']} buys the Operator ({top['buy_rate']})",
+                "detail": (f"{top['player']} on {top['agent']} buys the Operator "
+                           f"in {buys} of {sample} series rounds."),
+                "action": ("Bait the first shot into your prepared hold window "
+                           "and trade immediately - the angle is a habit, not "
+                           "an accident."),
+                "evidence": {"rounds_seen": buys, "sample_rounds": sample,
+                             "confidence": None, "source": "operator",
+                             "scope": "series"},
+                "score": cov_score(buys, sample),
+            })
+
+    # 3) execute tempo. The real snapshot paces per MAP (the lotus entry
+    # is the lotus median); synthetic fixtures pace per SITE across the
+    # series. Quote whichever scope the payload actually carries - never
+    # rebrand one as the other.
+    sites = pacing.get("sites") or {}
+    tempo = None
+    map_entry = sites.get(map_name)
+    if isinstance(map_entry, dict) and map_entry.get("median_utility_to_plant_s"):
+        tempo = (map_name, map_entry, "map")
+    else:
+        timed = [(n, s) for n, s in sites.items()
+                 if isinstance(s, dict) and s.get("median_utility_to_plant_s")]
+        if timed:
+            tempo = (*min(timed, key=lambda kv: float(
+                kv[1]["median_utility_to_plant_s"])), "series")
+    if tempo:
+        name, s, scope = tempo
+        median = float(s["median_utility_to_plant_s"])
+        site_rounds = int(s.get("rounds") or 0)
+        label = (f"Execute tempo on {name.upper()}"
+                 if scope == "map"
+                 else f"Fastest execute: {name.upper()} site")
+        insights.append({
+            "severity": "warning" if median <= 60.0 else "note",
+            "kind": "tempo",
+            "title": f"{label} ({median:.1f}s median)",
+            "detail": (f"Utility-to-plant median on {name.upper()} is "
+                       f"{median:.1f}s across {site_rounds} rounds."),
+            "action": ("Stack early rotations for the fast hit; the window "
+                       "before their utility lands is your only prep time."),
+            "evidence": {"rounds_seen": site_rounds,
+                         "sample_rounds": site_rounds,
+                         "confidence": None, "source": "pacing",
+                         "scope": scope},
+            "score": cov_score(site_rounds, None),
+        })
+
+    # 4) utility focus - the ability the map plan is built around
+    abilities = atlas.get("abilities") or []
+    if abilities:
+        top = abilities[0]
+        zone = max(top["zones"], key=top["zones"].get) if top["zones"] else "?"
+        seen, _ = _hard_count_split(top.get("hard_count", ""))
+        zone_share = (top["zones"][zone] / sum(top["zones"].values())
+                      if top["zones"] else 0.0)
+        coverage = seen / rounds if rounds else 0.0
+        severity = ("critical" if coverage >= 0.4 and zone_share >= 0.5
+                    else "warning" if coverage >= 0.2 else "note")
+        insights.append({
+            "severity": severity, "kind": "utility",
+            "title": f"Utility focus: {top['ability']} on {zone.upper()}",
+            "detail": (f"{top['ability']} appears in {seen} of {rounds} "
+                       f"rounds with {zone_share:.0%} of its casts on "
+                       f"{zone.upper()} ({top.get('hard_count')})."),
+            "action": (f"Prepare a clear-site plan that denies the "
+                       f"{top.get('class', 'utility')} line on "
+                       f"{zone.upper()}."),
+            "evidence": {"rounds_seen": seen, "sample_rounds": rounds,
+                         "confidence": None, "source": "atlas",
+                         "scope": "map"},
+            "score": cov_score(seen, None),
+        })
+
+    # 5) the self-scout reminder - methodology, not telemetry
+    insights.append({
+        "severity": "note", "kind": "method",
+        "title": "Self-scout before the match",
+        "detail": ("Your own top zone is what their coaching staff will "
+                   "prepare against."),
+        "action": ("Run the Self-Scout view on your own recent series and "
+                   "rotate the habits it exposes."),
+        "evidence": {"rounds_seen": 0, "sample_rounds": rounds,
+                     "confidence": None, "source": "method",
+                     "scope": "method"},
+        "score": 0.0,
+    })
+
+    insights.sort(key=lambda i: (_SEVERITY_ORDER[i["severity"]],
+                                 -i["score"], i["kind"], i["title"]))
+    headline = ""
+    if insights:
+        headline = f"{insights[0]['title']} - {insights[0]['action']}"
+    return {"map": map_name, "side": side, "rounds": rounds,
+            "headline": headline, "insights": insights}
 
 
 # ---------------------------------------------------------------- filtering

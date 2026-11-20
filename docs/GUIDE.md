@@ -167,6 +167,37 @@ Response Schema:
   }
 }
 
+### E. GET /api/brief?map=<map_name>&side=<all|attacker|defender>&patch=<patch>&data=<real|synthetic>
+Severity-ranked counter-brief - the anti-strat core. The same builder
+feeds `/api/brief.pdf`, so the dashboard panel and the printed one-pager
+render identical content.
+
+Response Schema:
+{
+  "map": "lotus", "side": "all", "rounds": 436,
+  "headline": "Repeated lineup: toxic-screen x99 - Pre-aim ...",
+  "source": "real GRID corpus aggregates",
+  "insights": [
+    {
+      "severity": "critical",            // critical | warning | note
+      "kind": "lineup",                  // lineup | operator | tempo | utility | method
+      "title": "Repeated lineup: toxic-screen x99",
+      "detail": "toxic-screen is cast from the same spot in 99 rounds ...",
+      "action": "Pre-aim the landing spot and deny the line ...",
+      "evidence": {
+        "rounds_seen": 99, "sample_rounds": 436,
+        "confidence": 1.0,               // detector confidence or null
+        "source": "lineups",             // lineups | operator | pacing | atlas | method
+        "scope": "map"                   // map | series | method
+      }
+    }
+  ]
+}
+
+Insights are ordered top-down by severity, then coverage; every number
+traces to a committed aggregate (lineups repeats, operator buy_rate,
+pacing medians, atlas hard counts) - no evidence, no insight.
+
 ---
 
 ## 4. Frontend Rendering Expectations

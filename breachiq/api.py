@@ -24,7 +24,7 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from . import features, fixtures, spatial
-from .export import build_brief_pdf
+from .export import build_tactical_pdf
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = REPO_ROOT / "fixtures"
@@ -305,19 +305,42 @@ def pacing(data: str = Query("", description="optional data mode override")) -> 
     return ep.result()
 
 
+@app.get("/api/brief")
+def brief(map: str = Query(..., description="map name"),
+          side: str = Query("all", description="all | attacker | defender "
+                           "(attack/defense aliases accepted)"),
+          patch: str = Query("", description="patch filter, e.g. 10.00 "
+                             "(rounds in synthetic mode; points-scope "
+                             "only in real-aggregate mode)"),
+          data: str = Query("", description="optional data mode override")
+          ) -> dict:
+    """Severity-ranked counter-brief: every insight carries its evidence
+    (rounds seen / sample / confidence / source endpoint). One builder
+    feeds this JSON view and /api/brief.pdf, so the dashboard panel and
+    the coach's printed one-pager can never drift. Synthetic fixtures and
+    the real GRID aggregates both flow through unchanged."""
+    side = _SIDE_ALIASES.get(side, side)
+    if side not in ("all", "attacker", "defender"):
+        raise HTTPException(422, f"invalid side: {side}")
+    atlas_body = atlas(map=map, side=side, ability="", patch=patch, data=data)
+    op = operator(data=data)
+    lus = lineups(map=map, data=data)["lineups"]
+    pac = pacing(data=data)
+    body = features.tactical_brief(atlas_body, op, lus, pac, map, side)
+    body["source"] = ("real GRID corpus aggregates" if _real(data)
+                      else "synthetic")
+    return body
+
+
 @app.get("/api/brief.pdf")
 def brief_pdf(map: str = "split",
+              side: str = Query("all", description="all | attacker | defender"),
+              patch: str = Query("", description="optional patch filter"),
               data: str = Query("", description="optional data mode override")) -> Response:
-    # explicit kwargs: calling the endpoint directly would otherwise pass
-    # the raw Query() defaults through
-    atlas_body = atlas(map=map, side="all", ability="", data=data)
-    op = operator(data=data)
-    cues = features.counter_brief(atlas_body, op)
-    top = atlas_body["abilities"][0] if atlas_body["abilities"] else {}
-    pdf = build_brief_pdf(
-        title=f"{map} vs demo opponent" if not _real(data) else f"{map} vs Cloud9 (real aggregates)",
-        cues=cues,
-        evidence=top.get("evidence", {"rounds": 0, "matches": 0, "patch": "-"}))
+    # same builder as GET /api/brief - the PDF is a rendering of the
+    # exact JSON the dashboard can consume, never a separate logic path
+    body = brief(map=map, side=side, patch=patch, data=data)
+    pdf = build_tactical_pdf(body)
     return Response(pdf, media_type="application/pdf",
                     headers={"Content-Disposition": f'inline; filename="breachiq_{map}_brief.pdf"'})
 
