@@ -35,26 +35,21 @@ stay live through **Feb 3, 2027**; winners announced on or around **Feb 8**.
       and dual-track collaboration guide merged
 - [x] Filter rail expansion: player roster isolation, agent classification,
       and operator sniper hold bias toggle (`@steavengalang`)
-- [x] **v0.3 Tactical UI/UX Overhaul & Synchronized Spatial Filtering (`@steavengalang`):**
-  - **Single Reactive State Store:** Changing Map, Side, Player, Agent, or Ability
-    simultaneously filters all 6 panels on screen (2D Radar, 3D Arena, Counter-Brief,
-    Repeated Lineups, Site Execute Pacing, and Operator Leaderboard) with zero desync.
-  - **Authentic Architectural Blueprint Geometry:** Replaced raw placeholder boxes
-    with true-to-scale VALORANT corridor geometry, choke points, and radiant-hazard
-    plant zones (`[ A SITE ]`, `[ B SITE ]`, `[ C SITE ]`) in both 2D and 3D.
-  - **Spectacular Stadium 3D Perspective:** Elevated 28° hero stadium angle framing
-    soaring parabolic flight curves leaping into the upper air; de-clustered lineup
-    badges with elevated diagonal leader lines (0 text overlapping).
-  - **Site Execute Tempo (Map-Aware):** Displays real bomb sites for the active map
-    (`A SITE`, `B SITE`, `C SITE`) with execute round counts, median time-to-plant,
-    and visual 3-tier timeline bar (Fast Rush <45s, Default 45–80s, Late >80s).
-  - **Human-Readable Coaching Briefs:** Clean formatting (`101 CASTS across 65 ROUNDS (1.55/round)`)
-    structured into 3 actionable cards (`COUNTER UTILITY`, `LINEUP ALERT`, `SNIPER THREAT`).
-  - **Weapon / Operator Leaderboard:** Roster breakdown with buy rates, first blood counts,
-    and active map sightline badges with click-to-highlight vision cones.
+- [x] **v0.3 & v0.4 Tactical UI/UX Overhaul, Unified Viewport & Spatial Controls (`@steavengalang`):**
+  - **Single Unified Spatial Stage:** Eliminated cramped split-mode clutter in favor of a broadcast-grade single stage with synchronized toggle between `[ 🛰 2D RADAR ]` and `[ 🏟 3D ARENA ]`.
+  - **Arc Decluttering & Density Modes:** Added triple-tier density control (`TOP LINEUPS (CLEAN)` rendering top 10–12 highest impact arcs, `CLUSTERED HEATMAP` grouping casts with `★ 14x`/`31x` count badges, and `ALL CASTS (RAW)` rendering at subtle 0.22 opacity).
+  - **2D Radar Pointer Hit-Testing & Hover Inspection:** Precise point-to-segment distance calculation (within 22px hit radius) detecting hovered utility casts, lineup curves, and sniper cones; highlights hovered arc in Cloud9 cyan/amber, dims background to 0.20, and displays glassmorphic metadata tooltip.
+  - **Click-to-Pin & Seamless 3D Transition:** Clicking any 2D trajectory pins it with `[ 👁 VIEW IN 3D ]` action button that switches to 3D arena, centers camera pan on target impact, and highlights the flight curve.
+  - **Unconstrained 360° 3D Orbit & Pan Camera Rig:** Smooth left-click 360° yaw + 0° to 90° elevation pitch with inertia; right-click / shift-drag 2D ground pan (`panX`, `panY`); wheel zoom (40m to 480m); and 3D raycast hover detection.
+  - **Floating Camera Dock:** Docked cleanly at bottom-left of 3D canvas with 1-click presets: `TOP-DOWN` (90° overhead bird's-eye), `ISOMETRIC` (45°), `SITE A` / `SITE B` / `SITE C` (dynamic map-aware focus), `AUTO-ORBIT` turntable, and `RESET VIEW`.
+  - **Single Reactive State Store:** Changing Map, Side, Player, Agent, or Ability simultaneously filters all 6 panels on screen with zero desync.
+  - **Authentic Architectural Blueprint Geometry:** Replaced raw placeholder boxes with true-to-scale VALORANT corridor geometry, choke points, and radiant-hazard plant zones (`[ A SITE ]`, `[ B SITE ]`, `[ C SITE ]`) in both 2D and 3D.
+  - **Spectacular Stadium 3D Perspective:** Elevated 28° hero stadium angle framing soaring parabolic flight curves leaping into the upper air; de-clustered lineup badges with elevated diagonal leader lines.
+  - **Site Execute Tempo (Map-Aware):** Displays real bomb sites for the active map with execute round counts, median time-to-plant, and visual 3-tier timeline bar (Fast Rush <45s, Default 45–80s, Late >80s).
+  - **Human-Readable Coaching Briefs:** Clean formatting (`101 CASTS across 65 ROUNDS (1.55/round)`) structured into 3 actionable cards.
+  - **Weapon / Operator Leaderboard:** Roster breakdown with buy rates, first blood counts, and active map sightline badges with click-to-highlight vision cones.
   - **Collapsible Ability Drawer:** Searchable, sortable matrix across all active utility.
-  - **Export Scouting Brief & Data Audit Modals:** Markdown copy / print view and 100%
-    GRID compliance audit dialog.
+  - **Export Scouting Brief & Data Audit Modals:** Markdown copy / print view and 100% GRID compliance audit dialog.
 
 ## Week 4 (Dec 8–14): office hours + live GRID adapter
 

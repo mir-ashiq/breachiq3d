@@ -87,54 +87,43 @@
     <!-- Left Stage: Unified Spatial Tactical Viewport (62% width) -->
     <div class="stage-left">
       <section class="tactical-card spatial-viewport-card" id="spatial-card">
-        <!-- Card Header: Viewport Mode Switcher & Camera Presets -->
+        <!-- Card Header: Viewport Mode Switcher & Live Metadata -->
         <div class="card-header spatial-header">
           <div class="header-left">
             <span class="card-bracket">//</span>
             <h2>SPATIAL TACTICAL VIEWPORT</h2>
-            <!-- View Mode Switcher -->
+            <!-- View Mode Switcher: Single Unified Spatial Stage -->
             <div class="view-mode-toggle" role="tablist">
-              <button class="btn-mode active" id="mode-3d" role="tab" title="3D Ballistic Trajectory Arena">🏟 3D ARENA</button>
-              <button class="btn-mode" id="mode-2d" role="tab" title="2D Tactical Radar Blueprint">🛰 2D RADAR</button>
-              <button class="btn-mode" id="mode-split" role="tab" title="Synchronized Dual View">⚡ SPLIT</button>
+              <button class="btn-mode active" id="mode-2d" role="tab" title="2D Tactical Radar Blueprint">🛰 2D RADAR</button>
+              <button class="btn-mode" id="mode-3d" role="tab" title="3D Ballistic Trajectory Arena">🏟 3D ARENA</button>
             </div>
           </div>
 
           <div class="header-right">
-            <!-- 3D Camera Controls -->
-            <div class="v3-controls" id="v3-toolbar">
-              <button class="btn-tactical ghost small active" id="v3-stadium" title="Spectacular Stadium 3D View (28° pitch)">🏟 STADIUM</button>
-              <button class="btn-tactical ghost small" id="v3-iso" title="Isometric Perspective (45°)">📐 ISO</button>
-              <button class="btn-tactical ghost small" id="v3-overhead" title="Overhead Tactical Bird's-Eye View">🚁 TOP-DOWN</button>
-              <button class="btn-tactical ghost small" id="v3-site-a" title="Focus Camera on Site A">🎯 SITE A</button>
-              <button class="btn-tactical ghost small" id="v3-site-b" title="Focus Camera on Site B">🎯 SITE B</button>
-              <button class="btn-tactical ghost small" id="v3-auto" title="Toggle Auto-Orbit Turntable">▶ ORBIT</button>
-              <button class="btn-tactical ghost small" id="v3-reset" title="Reset Camera View">⌂ RESET</button>
-            </div>
+            <span class="stage-fidelity-badge" id="stage-info-pill">CALIBRATED // 160 SPATIAL CASTS</span>
           </div>
         </div>
 
-        <!-- Layer Filters Toolbar -->
+        <!-- Layer & Density Filters Toolbar -->
         <div class="spatial-subbar">
           <div class="subbar-left">
-            <span class="subbar-label">UTILITY LAYERS:</span>
-            <div id="layer-toggles" class="layer-pill-group"></div>
+            <span class="subbar-label">DENSITY MODE:</span>
+            <div class="density-pill-group" id="density-toggles">
+              <button class="toggle-btn density-btn on" data-density="clean" id="density-clean" title="Render only top 10-12 highest-impact utility arcs and key sightlines">TOP LINEUPS (CLEAN)</button>
+              <button class="toggle-btn density-btn" data-density="heatmap" id="density-heatmap" title="Group overlapping casts into clean impact zones with repetition badges">CLUSTERED HEATMAP</button>
+              <button class="toggle-btn density-btn" data-density="raw" id="density-raw" title="Render all individual casts at reduced opacity (brightens on hover)">ALL CASTS (RAW)</button>
+            </div>
           </div>
           <div class="subbar-right">
-            <span class="subbar-info" id="stage-info-pill">CALIBRATED // 160 SPATIAL CASTS</span>
+            <span class="subbar-label">UTILITY:</span>
+            <div id="layer-toggles" class="layer-pill-group"></div>
           </div>
         </div>
 
         <!-- Canvas Viewports Container -->
         <div class="canvas-viewport-container" id="canvas-container">
-          <!-- 3D Holographic Canvas -->
-          <div class="viewport-box view-3d active" id="box-3d">
-            <canvas id="traj3d" width="800" height="520"></canvas>
-            <div class="v3-orbit-hint">DRAG TO ORBIT · SCROLL TO ZOOM · HOVER ARC TO INSPECT</div>
-          </div>
-
-          <!-- 2D Tactical Radar Canvas -->
-          <div class="viewport-box view-2d hidden" id="box-2d">
+          <!-- 2D Tactical Radar Canvas (Default) -->
+          <div class="viewport-box view-2d active" id="box-2d">
             <div class="canvas-hud-overlay top-left">
               <span class="hud-tag" id="radar-map-label">MAP: SUMMIT</span>
               <span class="hud-sub" id="radar-coords-label">COORDS: CALIBRATED</span>
@@ -143,6 +132,25 @@
               <span class="hud-compass">N ▲</span>
             </div>
             <canvas id="minimap" width="800" height="800"></canvas>
+            <div class="radar-hover-hint">HOVER TRAJECTORY TO INSPECT · CLICK TO PIN &amp; VIEW IN 3D</div>
+          </div>
+
+          <!-- 3D Holographic Canvas -->
+          <div class="viewport-box view-3d hidden" id="box-3d">
+            <canvas id="traj3d" width="800" height="520"></canvas>
+            
+            <!-- Floating Camera Dock at Bottom-Left -->
+            <div class="v3-floating-dock" id="v3-dock">
+              <button class="btn-tactical ghost small" id="v3-topdown" title="90° Overhead Bird's-Eye View">🚁 TOP-DOWN</button>
+              <button class="btn-tactical ghost small" id="v3-iso" title="45° Angled Isometric View">📐 ISOMETRIC</button>
+              <button class="btn-tactical ghost small" id="v3-site-a" title="Focus Camera on A Site">🎯 A SITE</button>
+              <button class="btn-tactical ghost small" id="v3-site-b" title="Focus Camera on B Site">🎯 B SITE</button>
+              <button class="btn-tactical ghost small hidden" id="v3-site-c" title="Focus Camera on C Site">🎯 C SITE</button>
+              <button class="btn-tactical ghost small" id="v3-auto" title="Toggle Auto-Orbit Turntable">▶ AUTO-ORBIT</button>
+              <button class="btn-tactical ghost small" id="v3-reset" title="Reset Camera View to Defaults">⌂ RESET VIEW</button>
+            </div>
+
+            <div class="v3-orbit-hint">L-DRAG: 360° ORBIT · R-DRAG / SHIFT-DRAG: PAN · SCROLL: ZOOM</div>
           </div>
 
           <!-- Shared Floating Glassmorphic Tooltip -->
@@ -379,6 +387,6 @@
   </div>
 </div>
 
-<script src="app.js?v=2026.9"></script>
+<script src="app.js?v=2026.10"></script>
 </body>
 </html>

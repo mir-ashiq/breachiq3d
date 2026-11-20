@@ -57,7 +57,13 @@ judges inspect commit histories and PR flows).
   ingested (28 Cloud9 series, 1,404 rounds, 48,250 utility casts); next: Live GRID
   GraphQL/REST API adapter and multi-series query pipeline.
 - Sann (`@steavengalang`):
-  - **v0.3 Tactical UI/UX Overhaul & Synchronized Spatial Filtering:**
+  - **v0.3 & v0.4 Tactical UI/UX Overhaul, Unified Viewport & Spatial Controls:**
+    - Single unified spatial stage eliminating cramped split-mode clutter, toggling between 2D Tactical Radar and 3D Ballistic Arena.
+    - Utility arc decluttering with triple-tier density modes: `TOP LINEUPS (CLEAN)` (top 10–12 high-impact arcs), `CLUSTERED HEATMAP` (spatial impact zones with count badges), and `ALL CASTS (RAW)` (subtle 0.22 opacity).
+    - 2D Canvas point-to-segment distance hit-testing (22px radius) with real-time hover glow, background dimming, and glassmorphic telemetry tooltips.
+    - Click-to-pin trajectory inspection with direct `[ 👁 VIEW IN 3D ]` transition focusing camera onto target landing coordinates.
+    - Unconstrained 360° horizontal yaw orbit + vertical elevation pitch (0° ground to 90° overhead); right-click / shift-drag 2D ground pan (`panX`, `panY`); wheel zoom (40m–480m).
+    - Floating Camera Dock with 1-click presets: `TOP-DOWN`, `ISOMETRIC`, `SITE A`, `SITE B`, `SITE C` (dynamic map-aware), `AUTO-ORBIT`, and `RESET VIEW`.
     - Single reactive state store eliminating filter desync across all 6 panels.
     - True-to-scale VALORANT architectural corridors and plant zones in 2D and 3D.
     - Soaring Stadium 3D perspective with multi-pass luminous trajectory ribbons.
