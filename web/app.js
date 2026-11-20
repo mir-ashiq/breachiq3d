@@ -20,10 +20,14 @@ const TACTICAL_STATE = {
   player: "all",
   agent: "all",
   ability: "",
-  viewMode: "3d", // "3d", "2d", "split"
+  viewMode: "2d", // "2d" (default) or "3d"
+  densityMode: "clean", // "clean" (default), "heatmap", "raw"
   highlightedLineupKey: null,
   selectedPlayer: null,
+  hovered2DItem: null,
+  pinned2DItem: null,
   hoveredArc: null,
+  pinned3DArc: null,
   rawAtlas: null,
   rawOperator: null,
   rawLineups: [],
@@ -312,14 +316,20 @@ const V3 = {
   yaw: 0.45,
   pitch: 0.48,
   dist: 145,
+  panX: 0,
+  panY: 0,
   auto: false,
   highlight: null,
   hoveredArc: null,
+  pinnedArc: null,
   lineups: [],
   arcs: [],
   bounds: { w: 110, h: 120 },
   map: "summit",
   dragging: false,
+  dragMode: "orbit",
+  lastX: 0,
+  lastY: 0,
 
   setMap(map, bounds, atlas, lineups) {
     this.map = map || "summit";
@@ -338,8 +348,18 @@ const V3 = {
       return true;
     });
 
-    // Sample up to 60 prominent casts to maintain 60 FPS
-    const sample = filteredPts.slice(0, 60);
+    // Handle Density Modes:
+    // 1. "clean" (Default): Top 10-12 highest-frequency/impact items to avoid spaghetti clutter
+    // 2. "heatmap": Clustered density representation
+    // 3. "raw": All casts (rendered with subtle base alpha)
+    let sample = filteredPts;
+    if (TACTICAL_STATE.densityMode === "clean") {
+      sample = filteredPts.slice(0, 12);
+    } else if (TACTICAL_STATE.densityMode === "raw") {
+      sample = filteredPts.slice(0, 80);
+    } else {
+      sample = filteredPts.slice(0, 30);
+    }
 
     for (const p of sample) {
       const u0 = p.u0 !== undefined ? p.u0 : p.u;
@@ -384,6 +404,8 @@ const V3 = {
       const h = Math.max(460, Math.min(560, Math.round(800 * (bounds.h || 120) / (bounds.w || 110))));
       if (canvas.height !== h) canvas.height = h;
     }
+
+    updateSiteButtons();
   },
 
   toWorld(u, v, z) {
@@ -391,16 +413,18 @@ const V3 = {
   },
 
   project(x, y, z, w, h) {
+    const px = x - this.panX;
+    const py = y - this.panY;
     const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
-    const x1 = x * cy - y * sy;
-    const y1 = x * sy + y * cy;
+    const x1 = px * cy - py * sy;
+    const y1 = px * sy + py * cy;
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     const depth = y1 * cp - z * sp;
     const up = y1 * sp + z * cp;
     const d = this.dist - depth;
-    if (d < 8) return null;
+    if (d < 5) return null;
     const f = Math.min(w, h) * 0.96;
-    return [w / 2 + x1 * f / d, h * 0.66 - up * f / d, d];
+    return [w / 2 + x1 * f / d, h * 0.58 - up * f / d, d];
   },
 };
 
@@ -780,8 +804,9 @@ function draw3D() {
   ctx.fillStyle = "rgba(148, 163, 184, 0.6)";
   ctx.font = "9px 'JetBrains Mono', monospace";
   const degPitch = Math.round(V3.pitch * 180 / Math.PI);
-  const degYaw = Math.round((V3.yaw % (Math.PI * 2)) * 180 / Math.PI);
-  ctx.fillText(`CAM PITCH: ${degPitch}° · YAW: ${degYaw}° · DIST: ${Math.round(V3.dist)}m`, 16, 36);
+  const degYaw = Math.round(((V3.yaw % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2)) * 180 / Math.PI);
+  const panStr = (Math.abs(V3.panX) > 1 || Math.abs(V3.panY) > 1) ? ` · PAN: [${Math.round(V3.panX)}, ${Math.round(V3.panY)}]` : "";
+  ctx.fillText(`CAM PITCH: ${degPitch}° · YAW: ${degYaw}° · DIST: ${Math.round(V3.dist)}m${panStr}`, 16, 36);
 }
 
 function v3Loop() {
@@ -924,12 +949,23 @@ function drawMapFloorplan(ctx, mapName, W, H, bounds) {
 let lastAtlasData = null;
 let lastLineupsData = null;
 let lastBoundsData = null;
+let lastRendered2DItems = [];
+
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const l2 = dx * dx + dy * dy;
+  if (l2 === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
 
 function drawMinimap(atlas, lineups, bounds) {
   if (!atlas) return;
   lastAtlasData = atlas;
   lastLineupsData = lineups;
   lastBoundsData = bounds;
+  lastRendered2DItems = [];
 
   const canvas = $("minimap");
   if (!canvas) return;
@@ -940,74 +976,283 @@ function drawMinimap(atlas, lineups, bounds) {
   drawMapFloorplan(ctx, map, W, H, bounds);
   drawRadarSweep(ctx, W, H);
 
-  // Thermal Density Heatmap
-  const dens = atlas.density || [];
-  if (TACTICAL_STATE.layers.density && dens.length && (atlas.points || []).length > 0) {
-    const maxD = Math.max(1, ...dens.map((d) => d[2]));
-    ctx.save();
-    for (const [u, v, n] of dens) {
-      const rx = u * W, ry = v * H;
-      const intensity = Math.min(1, n / maxD);
-      const rad = 24 + intensity * 24;
-      const g = ctx.createRadialGradient(rx, ry, 0, rx, ry, rad);
-      g.addColorStop(0, "rgba(0, 174, 239, 0.22)");
-      g.addColorStop(0.5, "rgba(37, 99, 235, 0.10)");
+  const activeLineups = (lineups || []).filter((l) => l.map === map);
+  const rawPts = atlas.points || [];
+
+  // Filter raw points by active tactical layers & filters
+  const filteredPts = rawPts.filter((p) => {
+    if (TACTICAL_STATE.layers[p.class] === false) return false;
+    if (TACTICAL_STATE.ability && p.ability !== TACTICAL_STATE.ability) return false;
+    if (TACTICAL_STATE.agent !== "all" && p.agent !== TACTICAL_STATE.agent) return false;
+    if (TACTICAL_STATE.player !== "all" && p.player !== TACTICAL_STATE.player) return false;
+    return true;
+  });
+
+  const anyFocused = !!(TACTICAL_STATE.hovered2DItem || TACTICAL_STATE.pinned2DItem || TACTICAL_STATE.highlightedLineupKey || TACTICAL_STATE.selectedPlayer);
+
+  // 1. Clustered Heatmap Mode: Spatial Impact Zones & Count Badges
+  if (TACTICAL_STATE.densityMode === "heatmap" || TACTICAL_STATE.layers.density) {
+    // Spatial Clustering (merge points within 0.08 normalized distance)
+    const clusters = [];
+    for (const p of filteredPts) {
+      let found = false;
+      for (const c of clusters) {
+        if (Math.hypot(c.u - p.u, c.v - p.v) < 0.085) {
+          c.count++;
+          c.points.push(p);
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        clusters.push({
+          u: p.u,
+          v: p.v,
+          count: 1,
+          class: p.class,
+          ability: p.ability,
+          player: p.player,
+          agent: p.agent,
+          points: [p],
+        });
+      }
+    }
+
+    // Render Clustered Radial Heatmap Zones
+    for (const c of clusters) {
+      const rx = c.u * W, ry = c.v * H;
+      const rad = Math.min(65, 20 + c.count * 2.8);
+      const isHovered = TACTICAL_STATE.hovered2DItem && TACTICAL_STATE.hovered2DItem.cluster === c;
+
+      const g = ctx.createRadialGradient(rx, ry, 2, rx, ry, rad);
+      g.addColorStop(0, isHovered ? "rgba(0, 174, 239, 0.45)" : "rgba(0, 174, 239, 0.22)");
+      g.addColorStop(0.6, "rgba(37, 99, 235, 0.10)");
       g.addColorStop(1, "rgba(0, 0, 0, 0)");
+
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.arc(rx, ry, rad, 0, Math.PI * 2); ctx.fill();
+
+      // Cluster Border Ring
+      ctx.strokeStyle = isHovered ? "var(--c9-cyan)" : "rgba(0, 174, 239, 0.35)";
+      ctx.lineWidth = isHovered ? 2.0 : 1.0;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.arc(rx, ry, Math.max(14, rad * 0.65), 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Repetition Count Badge (e.g. ★ 14x or 31x)
+      if (c.count >= 2 || TACTICAL_STATE.densityMode === "heatmap") {
+        const badgeText = `★ ${c.count}x`;
+        ctx.font = "bold 9px 'JetBrains Mono', monospace";
+        const tw = ctx.measureText(badgeText).width;
+
+        ctx.fillStyle = "rgba(4, 7, 17, 0.92)";
+        ctx.strokeStyle = isHovered ? "#00aeef" : "#f59e0b";
+        ctx.lineWidth = 1;
+        ctx.fillRect(rx - tw / 2 - 4, ry - 7, tw + 8, 14);
+        ctx.strokeRect(rx - tw / 2 - 4, ry - 7, tw + 8, 14);
+
+        ctx.fillStyle = isHovered ? "#00aeef" : "#f59e0b";
+        ctx.textAlign = "center";
+        ctx.fillText(badgeText, rx, ry + 3.5);
+        ctx.textAlign = "left";
+      }
+
+      lastRendered2DItems.push({
+        kind: "cluster",
+        x: rx,
+        y: ry,
+        u: c.u,
+        v: c.v,
+        cluster: c,
+        ability: c.ability,
+        class: c.class,
+        player: c.player,
+        agent: c.agent,
+        repeats: c.count,
+      });
     }
-    ctx.restore();
   }
 
-  // Trajectory Arcs on 2D Minimap
-  const pts = atlas.points || [];
-  const activeLineups = (lineups || []).filter((l) => l.map === map);
+  // 2. Lineups (Repeated Exploit Trajectories)
+  // In "clean" mode, render top 5; otherwise all matching
+  const lineupSample = (TACTICAL_STATE.densityMode === "clean") ? activeLineups.slice(0, 6) : activeLineups;
 
-  // Lineup golden arcs
-  for (const l of activeLineups) {
+  for (const l of lineupSample) {
     if (!l.trajectory || !l.trajectory.points) continue;
     if (TACTICAL_STATE.ability && l.ability !== TACTICAL_STATE.ability) continue;
-    const isFocused = TACTICAL_STATE.highlightedLineupKey === `${l.ability}@${l.map}`;
-    ctx.save();
-    ctx.strokeStyle = isFocused ? "#f59e0b" : "rgba(245, 158, 11, 0.55)";
-    ctx.lineWidth = isFocused ? 3.5 : 1.8;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath();
+
+    const isHovered = (TACTICAL_STATE.hovered2DItem && TACTICAL_STATE.hovered2DItem.lineup === l);
+    const isPinned = (TACTICAL_STATE.pinned2DItem && TACTICAL_STATE.pinned2DItem.lineup === l);
+    const isFocused = isHovered || isPinned || (TACTICAL_STATE.highlightedLineupKey === `${l.ability}@${l.map}`);
+    const alpha = isFocused ? 1.0 : (anyFocused ? 0.20 : 0.85);
+
     const lpts = l.trajectory.points;
-    ctx.moveTo(lpts[0][0] * W, lpts[0][1] * H);
+    const x0 = lpts[0][0] * W, y0 = lpts[0][1] * H;
+    const x1 = lpts[lpts.length - 1][0] * W, y1 = lpts[lpts.length - 1][1] * H;
+
+    // Glowing Outer Bloom
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = isFocused ? "rgba(245, 158, 11, 0.45)" : "rgba(245, 158, 11, 0.15)";
+    ctx.lineWidth = isFocused ? 7.0 : 3.5;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
     for (let i = 1; i < lpts.length; i++) ctx.lineTo(lpts[i][0] * W, lpts[i][1] * H);
     ctx.stroke();
+
+    // Laser Core Line
+    ctx.strokeStyle = isFocused ? "#f59e0b" : "rgba(245, 158, 11, 0.65)";
+    ctx.lineWidth = isFocused ? 2.8 : 1.6;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    for (let i = 1; i < lpts.length; i++) ctx.lineTo(lpts[i][0] * W, lpts[i][1] * H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Caster Origin Dot
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath(); ctx.arc(x0, y0, isFocused ? 4 : 2.5, 0, Math.PI * 2); ctx.fill();
+
+    // Landing Impact Pulse
+    ctx.fillStyle = "#f59e0b";
+    ctx.beginPath(); ctx.arc(x1, y1, isFocused ? 5 : 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(x1, y1, isFocused ? 8 : 5.5, 0, Math.PI * 2); ctx.stroke();
+
+    // Leader Badge if focused or high frequency
+    if (isFocused || l.repeats >= 25) {
+      const mid = lpts[Math.floor(lpts.length / 2)];
+      const mx = mid[0] * W, my = mid[1] * H;
+      const badgeText = `★ ${l.ability.toUpperCase()} // ${l.repeats}R [${l.trajectory.apex_m}m]`;
+      ctx.font = "bold 9px 'JetBrains Mono', monospace";
+      const tw = ctx.measureText(badgeText).width;
+
+      ctx.fillStyle = "rgba(4, 7, 17, 0.94)";
+      ctx.strokeStyle = "#f59e0b";
+      ctx.lineWidth = 1.2;
+      ctx.fillRect(mx + 8, my - 14, tw + 10, 14);
+      ctx.strokeRect(mx + 8, my - 14, tw + 10, 14);
+      ctx.fillStyle = "#f59e0b";
+      ctx.fillText(badgeText, mx + 13, my - 3.5);
+    }
     ctx.restore();
+
+    lastRendered2DItems.push({
+      kind: "line",
+      x0,
+      y0,
+      x1,
+      y1,
+      u1: lpts[lpts.length - 1][0],
+      v1: lpts[lpts.length - 1][1],
+      lineup: l,
+      ability: l.ability,
+      class: "exploit lineup",
+      player: "Cloud9 Rival",
+      agent: l.agent || "AGENT",
+      repeats: l.repeats,
+      apex_h: l.trajectory.apex_m,
+      pitch: l.trajectory.pitch_deg,
+    });
   }
 
-  // Cast Points & Aim Vectors
-  for (const p of pts) {
-    if (TACTICAL_STATE.layers[p.class] === false) continue;
-    if (TACTICAL_STATE.ability && p.ability !== TACTICAL_STATE.ability) continue;
-    if (TACTICAL_STATE.agent !== "all" && p.agent !== TACTICAL_STATE.agent) continue;
-    if (TACTICAL_STATE.player !== "all" && p.player !== TACTICAL_STATE.player) continue;
+  // 3. Regular Utility Casts & Flight Trajectories
+  // Density filter: "clean" = top 10-12, "raw" = up to 80, "heatmap" = up to 25
+  let castSample = filteredPts;
+  if (TACTICAL_STATE.densityMode === "clean") {
+    castSample = filteredPts.slice(0, 12);
+  } else if (TACTICAL_STATE.densityMode === "raw") {
+    castSample = filteredPts.slice(0, 80);
+  } else {
+    castSample = filteredPts.slice(0, 24);
+  }
 
-    const x = p.u * W, y = p.v * H;
+  for (const p of castSample) {
+    const isHovered = (TACTICAL_STATE.hovered2DItem && TACTICAL_STATE.hovered2DItem.p === p);
+    const isPinned = (TACTICAL_STATE.pinned2DItem && TACTICAL_STATE.pinned2DItem.p === p);
+    const isFocused = isHovered || isPinned ||
+      (TACTICAL_STATE.selectedPlayer && p.player && p.player.toLowerCase() === TACTICAL_STATE.selectedPlayer.toLowerCase()) ||
+      (TACTICAL_STATE.highlightedLineupKey && TACTICAL_STATE.highlightedLineupKey.toLowerCase().includes(p.ability.toLowerCase()));
+
+    const baseAlpha = isFocused ? 1.0 : (anyFocused ? 0.20 : (TACTICAL_STATE.densityMode === "raw" ? 0.22 : 0.70));
     const col = CLASS_COLORS[p.class] || CLASS_COLORS.other;
 
-    // Draw Landing Blip
+    const u0 = p.u0 !== undefined ? p.u0 : p.u - 0.04;
+    const v0 = p.v0 !== undefined ? p.v0 : p.v - 0.04;
+    const x0 = u0 * W, y0 = v0 * H;
+    const x1 = p.u * W, y1 = p.v * H;
+
+    ctx.save();
+    ctx.globalAlpha = baseAlpha;
+
+    // Trajectory Ballistic Flight Vector
+    ctx.strokeStyle = col;
+    ctx.lineWidth = isFocused ? 2.6 : 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+
+    // Caster Origin Dot
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath(); ctx.arc(x0, y0, isFocused ? 3.5 : 2.0, 0, Math.PI * 2); ctx.fill();
+
+    // Landing Impact Blip
     ctx.fillStyle = col;
-    ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x1, y1, isFocused ? 5.0 : 3.5, 0, Math.PI * 2); ctx.fill();
+
+    // Landing Pulse Ring if focused
+    if (isFocused) {
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(x1, y1, 8.0, 0, Math.PI * 2); ctx.stroke();
+
+      const labelText = `${p.ability.toUpperCase()} // ${p.player.toUpperCase()}`;
+      ctx.font = "bold 9px 'JetBrains Mono', monospace";
+      const tw = ctx.measureText(labelText).width;
+      ctx.fillStyle = "rgba(4, 7, 17, 0.94)";
+      ctx.fillRect(x1 + 8, y1 - 12, tw + 8, 14);
+      ctx.strokeStyle = col;
+      ctx.strokeRect(x1 + 8, y1 - 12, tw + 8, 14);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(labelText, x1 + 12, y1 - 2);
+    }
 
     // Aim Azimuth Vector
     if (p.azimuth != null) {
       const azRad = (p.azimuth - 90) * Math.PI / 180;
-      const len = 12;
+      const len = isFocused ? 18 : 12;
       ctx.strokeStyle = col;
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = isFocused ? 2.0 : 1.2;
       ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + Math.cos(azRad) * len, y + Math.sin(azRad) * len);
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 + Math.cos(azRad) * len, y1 + Math.sin(azRad) * len);
       ctx.stroke();
     }
+    ctx.restore();
+
+    lastRendered2DItems.push({
+      kind: "line",
+      x0,
+      y0,
+      x1,
+      y1,
+      u1: p.u,
+      v1: p.v,
+      p,
+      class: p.class,
+      ability: p.ability,
+      player: p.player,
+      agent: p.agent,
+      pitch: p.pitch || 25,
+      apex_h: p.apex || 18,
+      repeats: 1,
+    });
   }
 
-  // Selected Player Sniper Sightlines
+  // 4. Selected Player Sniper Sightlines
   if (TACTICAL_STATE.selectedPlayer && TACTICAL_STATE.rawOperator) {
     const pl = (TACTICAL_STATE.rawOperator.players || []).find((p) => p.player === TACTICAL_STATE.selectedPlayer);
     if (pl && pl.hold_positions) {
@@ -1016,21 +1261,38 @@ function drawMinimap(atlas, lineups, bounds) {
       for (const h of here) {
         const hx = h.u * W, hy = h.v * H;
         // Vision cone
-        const coneGrad = ctx.createRadialGradient(hx, hy, 4, hx, hy, 45);
-        coneGrad.addColorStop(0, "rgba(0, 174, 239, 0.4)");
+        const coneGrad = ctx.createRadialGradient(hx, hy, 4, hx, hy, 55);
+        coneGrad.addColorStop(0, "rgba(0, 174, 239, 0.5)");
         coneGrad.addColorStop(1, "rgba(0, 174, 239, 0.0)");
         ctx.fillStyle = coneGrad;
         ctx.beginPath();
         ctx.moveTo(hx, hy);
-        ctx.arc(hx, hy, 45, -0.6, 0.6);
+        ctx.arc(hx, hy, 55, -0.6, 0.6);
         ctx.closePath();
         ctx.fill();
 
         ctx.fillStyle = "#ffffff";
-        ctx.beginPath(); ctx.arc(hx, hy, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(hx, hy, 4.5, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = "#00aeef";
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.2;
         ctx.stroke();
+
+        lastRendered2DItems.push({
+          kind: "hold",
+          x: hx,
+          y: hy,
+          x0: hx,
+          y0: hy,
+          x1: hx + 35,
+          y1: hy,
+          u1: h.u,
+          v1: h.v,
+          h,
+          player: pl.player,
+          agent: pl.agent,
+          ability: "OPERATOR SNIPER",
+          class: "sniper",
+        });
       }
       ctx.restore();
     }
@@ -1433,63 +1695,256 @@ function syncFilterOptions() {
 }
 
 /* ---------------- View Mode Switcher ---------------- */
+function updateSiteButtons() {
+  const bp = getMapBlueprint(TACTICAL_STATE.map);
+  const siteC = $("v3-site-c");
+  if (siteC) {
+    siteC.classList.toggle("hidden", !(bp.plants && bp.plants.length >= 3));
+  }
+}
+
 function setViewMode(mode) {
   TACTICAL_STATE.viewMode = mode;
   const box3d = $("box-3d");
   const box2d = $("box-2d");
   const container = $("canvas-container");
-  const toolbar = $("v3-toolbar");
 
-  $("mode-3d").classList.toggle("active", mode === "3d");
-  $("mode-2d").classList.toggle("active", mode === "2d");
-  $("mode-split").classList.toggle("active", mode === "split");
+  const mode3d = $("mode-3d");
+  const mode2d = $("mode-2d");
+  if (mode3d) mode3d.classList.toggle("active", mode === "3d");
+  if (mode2d) mode2d.classList.toggle("active", mode === "2d");
 
   if (mode === "3d") {
     container.classList.remove("split-mode");
-    box3d.classList.remove("hidden");
-    box2d.classList.add("hidden");
-    if (toolbar) toolbar.style.display = "flex";
-  } else if (mode === "2d") {
+    if (box3d) box3d.classList.remove("hidden");
+    if (box2d) box2d.classList.add("hidden");
+    updateSiteButtons();
+  } else {
     container.classList.remove("split-mode");
-    box3d.classList.add("hidden");
-    box2d.classList.remove("hidden");
-    if (toolbar) toolbar.style.display = "none";
-  } else if (mode === "split") {
-    container.classList.add("split-mode");
-    box3d.classList.remove("hidden");
-    box2d.classList.remove("hidden");
-    if (toolbar) toolbar.style.display = "flex";
+    if (box3d) box3d.classList.add("hidden");
+    if (box2d) box2d.classList.remove("hidden");
   }
 }
 
-/* ---------------- 3D Controls & Hit-Testing ---------------- */
+/* ---------------- 2D Radar Controls & Hit-Testing ---------------- */
+function minimapControls() {
+  const canvas = $("minimap");
+  const container = $("canvas-container");
+  if (!canvas) return;
+  const tt = $("canvas-tooltip");
+
+  canvas.addEventListener("mousemove", (e) => {
+    if (TACTICAL_STATE.pinned2DItem) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    let found = null;
+    let bestDist = 22; // generous hit radius in canvas pixels
+
+    for (const item of lastRendered2DItems) {
+      let d = 999;
+      if (item.kind === "line" || item.kind === "arc") {
+        const dSeg = distToSegment(mx, my, item.x0, item.y0, item.x1, item.y1);
+        const d0 = Math.hypot(item.x0 - mx, item.y0 - my);
+        const d1 = Math.hypot(item.x1 - mx, item.y1 - my);
+        d = Math.min(dSeg, d0, d1);
+      } else if (item.kind === "point" || item.kind === "hold" || item.kind === "cluster") {
+        d = Math.hypot(item.x - mx, item.y - my);
+      }
+      if (d < bestDist) {
+        bestDist = d;
+        found = item;
+      }
+    }
+
+    TACTICAL_STATE.hovered2DItem = found;
+
+    if (found && tt) {
+      canvas.style.cursor = "pointer";
+      const ability = found.ability || "utility";
+      const player = found.player || "Cloud9";
+      const agent = found.agent || "AGENT";
+      const cls = found.class || "utility";
+      const side = (found.side || TACTICAL_STATE.side || "all").toUpperCase();
+      const apex = found.apex_h ? `${Math.round(found.apex_h)}m` : (found.apex ? `${Math.round(found.apex)}m` : "18m");
+      const pitch = found.pitch ? `${Math.round(found.pitch)}°` : "25°";
+      const rounds = found.repeats || found.rounds || 1;
+
+      tt.innerHTML = `
+        <div class="tt-title">${ability.toUpperCase()} · ${cls.toUpperCase()}</div>
+        <div class="tt-caster">CASTER: ${player.toUpperCase()} (${agent.toUpperCase()}) · ${side}</div>
+        <div class="tt-row"><span>FREQUENCY:</span><b>${rounds} ROUNDS</b></div>
+        <div class="tt-row"><span>APEX HEIGHT:</span><b>${apex}</b></div>
+        <div class="tt-row"><span>LAUNCH PITCH:</span><b>${pitch}</b></div>
+      `;
+      const cBox = container ? container.getBoundingClientRect() : rect;
+      const ttX = e.clientX - cBox.left + 16;
+      const ttY = e.clientY - cBox.top - 20;
+      tt.style.left = `${Math.max(10, Math.min(cBox.width - 250, ttX))}px`;
+      tt.style.top = `${Math.max(10, Math.min(cBox.height - 180, ttY))}px`;
+      tt.classList.remove("hidden", "pinned");
+    } else {
+      canvas.style.cursor = "crosshair";
+      if (tt && !TACTICAL_STATE.pinned2DItem) tt.classList.add("hidden");
+    }
+  });
+
+  canvas.addEventListener("mouseleave", () => {
+    if (!TACTICAL_STATE.pinned2DItem) {
+      TACTICAL_STATE.hovered2DItem = null;
+      if (tt) tt.classList.add("hidden");
+    }
+  });
+
+  canvas.addEventListener("click", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    let found = null;
+    let bestDist = 24;
+
+    for (const item of lastRendered2DItems) {
+      let d = 999;
+      if (item.kind === "line" || item.kind === "arc") {
+        const dSeg = distToSegment(mx, my, item.x0, item.y0, item.x1, item.y1);
+        const d0 = Math.hypot(item.x0 - mx, item.y0 - my);
+        const d1 = Math.hypot(item.x1 - mx, item.y1 - my);
+        d = Math.min(dSeg, d0, d1);
+      } else if (item.kind === "point" || item.kind === "hold" || item.kind === "cluster") {
+        d = Math.hypot(item.x - mx, item.y - my);
+      }
+      if (d < bestDist) {
+        bestDist = d;
+        found = item;
+      }
+    }
+
+    if (found && tt) {
+      TACTICAL_STATE.pinned2DItem = found;
+      TACTICAL_STATE.hovered2DItem = found;
+
+      const ability = found.ability || "utility";
+      const player = found.player || "Cloud9";
+      const agent = found.agent || "AGENT";
+      const cls = found.class || "utility";
+      const side = (found.side || TACTICAL_STATE.side || "all").toUpperCase();
+      const apex = found.apex_h ? `${Math.round(found.apex_h)}m` : (found.apex ? `${Math.round(found.apex)}m` : "18m");
+      const pitch = found.pitch ? `${Math.round(found.pitch)}°` : "25°";
+      const rounds = found.repeats || found.rounds || 1;
+
+      tt.innerHTML = `
+        <span class="tt-badge-pinned">📌 PINNED SELECTION</span>
+        <div class="tt-title">${ability.toUpperCase()} · ${cls.toUpperCase()}</div>
+        <div class="tt-caster">CASTER: ${player.toUpperCase()} (${agent.toUpperCase()}) · ${side}</div>
+        <div class="tt-row"><span>FREQUENCY:</span><b>${rounds} ROUNDS</b></div>
+        <div class="tt-row"><span>APEX HEIGHT:</span><b>${apex}</b></div>
+        <div class="tt-row"><span>LAUNCH PITCH:</span><b>${pitch}</b></div>
+        <div class="tt-actions">
+          <button class="btn-tt-action" id="btn-view-in-3d">👁 VIEW IN 3D</button>
+          <button class="btn-tt-dismiss" id="btn-tt-dismiss">✕ UNPIN</button>
+        </div>
+      `;
+      const cBox = container ? container.getBoundingClientRect() : rect;
+      const ttX = e.clientX - cBox.left + 16;
+      const ttY = e.clientY - cBox.top - 20;
+      tt.style.left = `${Math.max(10, Math.min(cBox.width - 250, ttX))}px`;
+      tt.style.top = `${Math.max(10, Math.min(cBox.height - 180, ttY))}px`;
+      tt.classList.remove("hidden");
+      tt.classList.add("pinned");
+
+      const btn3d = $("btn-view-in-3d");
+      if (btn3d) {
+        btn3d.addEventListener("click", () => {
+          setViewMode("3d");
+          const targetU = found.u1 !== undefined ? found.u1 : (found.u !== undefined ? found.u : 0.5);
+          const targetV = found.v1 !== undefined ? found.v1 : (found.v !== undefined ? found.v : 0.5);
+          const wPos = V3.toWorld(targetU, targetV, 0);
+          V3.panX = wPos[0];
+          V3.panY = wPos[1];
+          V3.dist = 110;
+          V3.pitch = 0.55;
+          V3.highlight = found;
+          TACTICAL_STATE.highlightedLineupKey = `${found.ability}@${TACTICAL_STATE.map}`;
+          TACTICAL_STATE.pinned2DItem = null;
+          tt.classList.add("hidden");
+          tt.classList.remove("pinned");
+        });
+      }
+
+      const btnClose = $("btn-tt-dismiss");
+      if (btnClose) {
+        btnClose.addEventListener("click", () => {
+          TACTICAL_STATE.pinned2DItem = null;
+          TACTICAL_STATE.hovered2DItem = null;
+          tt.classList.add("hidden");
+          tt.classList.remove("pinned");
+        });
+      }
+    } else {
+      TACTICAL_STATE.pinned2DItem = null;
+      TACTICAL_STATE.hovered2DItem = null;
+      if (tt) {
+        tt.classList.add("hidden");
+        tt.classList.remove("pinned");
+      }
+    }
+  });
+}
+
+/* ---------------- 3D Controls & Full Orbit / Pan / Zoom ---------------- */
 function v3Controls() {
   const canvas = $("traj3d");
   if (!canvas) return;
 
   canvas.addEventListener("pointerdown", (e) => {
-    V3.dragging = true; V3.auto = false;
+    V3.dragging = true;
+    V3.auto = false;
     canvas.setPointerCapture(e.pointerId);
+    V3.dragMode = (e.button === 2 || e.shiftKey) ? "pan" : "orbit";
+    V3.lastX = e.clientX;
+    V3.lastY = e.clientY;
   });
 
   canvas.addEventListener("pointermove", (e) => {
     if (!V3.dragging) return;
-    V3.yaw += e.movementX * 0.006;
-    V3.pitch = Math.max(0.12, Math.min(1.30, V3.pitch + e.movementY * 0.004));
+    const dx = e.clientX - V3.lastX;
+    const dy = e.clientY - V3.lastY;
+    V3.lastX = e.clientX;
+    V3.lastY = e.clientY;
+
+    if (V3.dragMode === "pan") {
+      const panFactor = (V3.dist / 145) * 0.16;
+      const cy = Math.cos(V3.yaw), sy = Math.sin(V3.yaw);
+      const moveX = -dx * panFactor;
+      const moveY = dy * panFactor;
+      V3.panX += moveX * cy + moveY * sy;
+      V3.panY += -moveX * sy + moveY * cy;
+    } else {
+      V3.yaw = (V3.yaw + dx * 0.007) % (Math.PI * 2);
+      V3.pitch = Math.max(0.02, Math.min(1.54, V3.pitch + dy * 0.005));
+    }
   });
 
-  canvas.addEventListener("pointerup", () => { V3.dragging = false; });
+  canvas.addEventListener("pointerup", (e) => {
+    V3.dragging = false;
+    try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+  });
 
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
-    V3.dist = Math.max(70, Math.min(460, V3.dist * (1 + e.deltaY * 0.0012)));
+    V3.dist = Math.max(40, Math.min(480, V3.dist * (1 + e.deltaY * 0.0012)));
   }, { passive: false });
+
+  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
   // 3D Arc Hover Hit-Testing & Tooltip
   const tt = $("canvas-tooltip");
   canvas.addEventListener("mousemove", (e) => {
     if (V3.dragging) {
-      if (tt) tt.classList.add("hidden");
+      if (tt && !TACTICAL_STATE.pinned3DArc) tt.classList.add("hidden");
       return;
     }
     const rect = canvas.getBoundingClientRect();
@@ -1497,7 +1952,23 @@ function v3Controls() {
     const my = (e.clientY - rect.top) * (canvas.height / rect.height);
 
     let found = null;
-    let bestDist = 14;
+    let bestDist = 16;
+
+    for (const l of V3.lineups) {
+      if (l.trajectory && l.trajectory.points) {
+        for (const pt of l.trajectory.points) {
+          const wPt = V3.toWorld(pt[0], pt[1], pt[2]);
+          const p2d = V3.project(wPt[0], wPt[1], wPt[2], canvas.width, canvas.height);
+          if (p2d) {
+            const d = Math.hypot(p2d[0] - mx, p2d[1] - my);
+            if (d < bestDist) {
+              bestDist = d;
+              found = { lineup: l, p2d };
+            }
+          }
+        }
+      }
+    }
 
     for (const arc of (V3.arcs || [])) {
       for (const pt of arc.curvePts) {
@@ -1512,49 +1983,107 @@ function v3Controls() {
       }
     }
 
-    V3.hoveredArc = found ? { arc: found.arc } : null;
+    V3.hoveredArc = found;
 
-    if (found && tt) {
-      const a = found.arc;
+    if (found && tt && !TACTICAL_STATE.pinned3DArc) {
+      canvas.style.cursor = "pointer";
+      const a = found.arc || found.lineup;
+      const ability = a.ability || "utility";
+      const player = a.player || (a.agent ? `${a.agent.toUpperCase()} MAIN` : "Cloud9 Rival");
+      const agent = a.agent || "AGENT";
+      const cls = a.class || "utility";
+      const apex = a.apex_h || (a.trajectory ? a.trajectory.apex_m : 18);
+      const dist = a.dist_m || (a.trajectory ? Math.round(a.trajectory.apex_m * 2.2) : 35);
+      const pitch = a.pitch || (a.trajectory ? a.trajectory.pitch_deg : 30);
+      const repeats = a.repeats || 1;
+
       tt.innerHTML = `
-        <div class="tt-title">${a.ability.toUpperCase()}</div>
-        <div class="tt-caster">CASTER: ${a.player.toUpperCase()} (${a.agent ? a.agent.toUpperCase() : "AGENT"})</div>
-        <div class="tt-row"><span>CLASS:</span><b>${a.class.toUpperCase()}</b></div>
-        <div class="tt-row"><span>APEX HEIGHT:</span><b>${Math.round(a.apex_h)}m</b></div>
-        <div class="tt-row"><span>FLIGHT DISTANCE:</span><b>${Math.round(a.dist_m)}m</b></div>
-        <div class="tt-row"><span>LAUNCH PITCH:</span><b>${Math.round(a.pitch)}°</b></div>
+        <div class="tt-title">${ability.toUpperCase()} · ${cls.toUpperCase()}</div>
+        <div class="tt-caster">CASTER: ${player.toUpperCase()} (${agent.toUpperCase()})</div>
+        <div class="tt-row"><span>FREQUENCY:</span><b>${repeats} ROUNDS</b></div>
+        <div class="tt-row"><span>APEX HEIGHT:</span><b>${Math.round(apex)}m</b></div>
+        <div class="tt-row"><span>FLIGHT DISTANCE:</span><b>${Math.round(dist)}m</b></div>
+        <div class="tt-row"><span>LAUNCH PITCH:</span><b>${Math.round(pitch)}°</b></div>
       `;
-      tt.style.left = `${e.clientX - rect.left + 14}px`;
-      tt.style.top = `${e.clientY - rect.top - 20}px`;
-      tt.classList.remove("hidden");
-    } else if (tt) {
-      tt.classList.add("hidden");
+      const container = $("canvas-container");
+      const cBox = container ? container.getBoundingClientRect() : rect;
+      const ttX = e.clientX - cBox.left + 16;
+      const ttY = e.clientY - cBox.top - 20;
+      tt.style.left = `${Math.max(10, Math.min(cBox.width - 250, ttX))}px`;
+      tt.style.top = `${Math.max(10, Math.min(cBox.height - 180, ttY))}px`;
+      tt.classList.remove("hidden", "pinned");
+    } else if (!TACTICAL_STATE.pinned3DArc) {
+      canvas.style.cursor = "crosshair";
+      if (tt) tt.classList.add("hidden");
     }
   });
 
   canvas.addEventListener("mouseleave", () => {
     V3.hoveredArc = null;
-    if (tt) tt.classList.add("hidden");
+    if (tt && !TACTICAL_STATE.pinned3DArc) tt.classList.add("hidden");
   });
 
-  const setViewPreset = (yaw, pitch, dist, btnId) => {
+  const setViewPreset = (yaw, pitch, dist, panX = 0, panY = 0, btnId) => {
     V3.yaw = yaw;
     V3.pitch = pitch;
     V3.dist = dist;
+    V3.panX = panX;
+    V3.panY = panY;
     V3.auto = false;
-    ["v3-stadium", "v3-iso", "v3-overhead", "v3-site-a", "v3-site-b"].forEach((id) => {
+    ["v3-topdown", "v3-iso", "v3-site-a", "v3-site-b", "v3-site-c"].forEach((id) => {
       const b = $(id);
       if (b) b.classList.toggle("active", id === btnId);
     });
   };
 
-  if ($("v3-stadium")) $("v3-stadium").addEventListener("click", () => setViewPreset(0.45, 0.48, 145, "v3-stadium"));
-  if ($("v3-iso")) $("v3-iso").addEventListener("click", () => setViewPreset(0.78, 0.62, 160, "v3-iso"));
-  if ($("v3-overhead")) $("v3-overhead").addEventListener("click", () => setViewPreset(0.05, 1.18, 175, "v3-overhead"));
-  if ($("v3-site-a")) $("v3-site-a").addEventListener("click", () => setViewPreset(0.85, 0.52, 135, "v3-site-a"));
-  if ($("v3-site-b")) $("v3-site-b").addEventListener("click", () => setViewPreset(-0.45, 0.52, 135, "v3-site-b"));
-  if ($("v3-auto")) $("v3-auto").addEventListener("click", () => { V3.auto = !V3.auto; });
-  if ($("v3-reset")) $("v3-reset").addEventListener("click", () => setViewPreset(0.45, 0.48, 145, "v3-stadium"));
+  if ($("v3-topdown")) $("v3-topdown").addEventListener("click", () => setViewPreset(0, 1.54, 175, 0, 0, "v3-topdown"));
+  if ($("v3-iso")) $("v3-iso").addEventListener("click", () => setViewPreset(0.78, 0.62, 155, 0, 0, "v3-iso"));
+
+  if ($("v3-site-a")) {
+    $("v3-site-a").addEventListener("click", () => {
+      const bp = getMapBlueprint(V3.map);
+      if (bp.plants && bp.plants[0]) {
+        const p = bp.plants[0];
+        const wPos = V3.toWorld(p[0] + p[2] / 2, p[1] + p[3] / 2, 0);
+        setViewPreset(0.85, 0.62, 85, wPos[0], wPos[1], "v3-site-a");
+      }
+    });
+  }
+
+  if ($("v3-site-b")) {
+    $("v3-site-b").addEventListener("click", () => {
+      const bp = getMapBlueprint(V3.map);
+      if (bp.plants && bp.plants[1]) {
+        const p = bp.plants[1];
+        const wPos = V3.toWorld(p[0] + p[2] / 2, p[1] + p[3] / 2, 0);
+        setViewPreset(-0.45, 0.62, 85, wPos[0], wPos[1], "v3-site-b");
+      }
+    });
+  }
+
+  if ($("v3-site-c")) {
+    $("v3-site-c").addEventListener("click", () => {
+      const bp = getMapBlueprint(V3.map);
+      if (bp.plants && bp.plants[2]) {
+        const p = bp.plants[2];
+        const wPos = V3.toWorld(p[0] + p[2] / 2, p[1] + p[3] / 2, 0);
+        setViewPreset(1.85, 0.62, 85, wPos[0], wPos[1], "v3-site-c");
+      }
+    });
+  }
+
+  if ($("v3-auto")) {
+    $("v3-auto").addEventListener("click", () => {
+      V3.auto = !V3.auto;
+      $("v3-auto").classList.toggle("active", V3.auto);
+    });
+  }
+
+  if ($("v3-reset")) {
+    $("v3-reset").addEventListener("click", () => {
+      setViewPreset(0.45, 0.48, 145, 0, 0, "v3-iso");
+    });
+  }
 }
 
 /* ---------------- Export Scouting Brief Modal ---------------- */
@@ -1689,10 +2218,29 @@ async function boot() {
     syncAllPanels();
   });
 
-  // View Mode Buttons
-  $("mode-3d").addEventListener("click", () => setViewMode("3d"));
-  $("mode-2d").addEventListener("click", () => setViewMode("2d"));
-  $("mode-split").addEventListener("click", () => setViewMode("split"));
+  // Density Mode Buttons
+  const densityBtns = [
+    { id: "density-clean", mode: "clean" },
+    { id: "density-heatmap", mode: "heatmap" },
+    { id: "density-raw", mode: "raw" },
+  ];
+  densityBtns.forEach(({ id, mode }) => {
+    const btn = $(id);
+    if (btn) {
+      btn.addEventListener("click", () => {
+        TACTICAL_STATE.densityMode = mode;
+        densityBtns.forEach((b) => {
+          const el = $(b.id);
+          if (el) el.classList.toggle("on", b.mode === mode);
+        });
+        syncAllPanels();
+      });
+    }
+  });
+
+  // View Mode Buttons (Single Unified Stage: 2D Radar vs 3D Arena)
+  if ($("mode-2d")) $("mode-2d").addEventListener("click", () => setViewMode("2d"));
+  if ($("mode-3d")) $("mode-3d").addEventListener("click", () => setViewMode("3d"));
 
   // Header Actions
   $("btn-refresh").addEventListener("click", syncAllPanels);
@@ -1719,9 +2267,13 @@ async function boot() {
 
   // Set up visual components
   renderToggles();
+  minimapControls();
   v3Controls();
   requestAnimationFrame(v3Loop);
   requestAnimationFrame(radarLoop);
+
+  // Set initial View Mode
+  setViewMode(TACTICAL_STATE.viewMode || "2d");
 
   // Initial Sync
   await syncAllPanels();
@@ -1734,9 +2286,8 @@ document.addEventListener("keydown", (e) => {
   if (k === "r") syncAllPanels();
   else if (k === "b") openExportBriefModal();
   else if (k === "?") $("onboarding").classList.remove("hidden");
-  else if (k === "1") setViewMode("3d");
-  else if (k === "2") setViewMode("2d");
-  else if (k === "3") setViewMode("split");
+  else if (k === "1") setViewMode("2d");
+  else if (k === "2") setViewMode("3d");
 });
 
 boot();
