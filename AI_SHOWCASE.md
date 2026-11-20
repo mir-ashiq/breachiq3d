@@ -102,6 +102,37 @@ pretending real-mode aggregates filter by roster.
 Verification: `pytest` 83 passed, 1 skipped; `scripts/audit_repo.py`
 clean; branch → PR → CI → rebase-merge through the enforced gate.
 
+### 2026-11-20 — backend: severity-ranked counter-brief engine (/api/brief)
+
+Tool: Z.ai agent (backend track). The teammate had regenerated the real
+GRID snapshot on his machine (5,693 per-cast points flowing through the
+contract we landed on Nov 19) and shipped four UI overhauls - but the
+"AI Tactical Counter-Brief" panel was still template strings glued
+together client-side, with no severity ordering and no evidence per
+claim.
+Prompt(s): "my friend has done some work on project now its our turn ...
+also tell me why does the UI look like shit and i can't understand what
+we are building" - the UI diagnosis ran first (headless-browser
+screenshots + a vision-model design review), which pinned the missing
+severity/evidence layer as the backend gap.
+What the agent produced: `features.tactical_brief` - deterministic
+severity rules (lineup exploit / Operator habit / execute tempo / utility
+focus), each insight carrying evidence (rounds seen / sample, detector
+confidence, source endpoint, map-vs-series scope); `GET /api/brief`
+(synthetic + real modes) and `/api/brief.pdf` rewired to render the SAME
+dict so panel and printout can never drift; the PDF gained severity
+chips, inline evidence lines and a BRIEF SCOPE provenance panel; GUIDE.md
+section 3E documents the contract; 6 new tests pin ordering, evidence
+tracing (the lineup insight must quote /api/lineups' exact repeat count)
+and scope honesty.
+What we changed by hand: caught two of our own scope bugs before
+shipping - the Operator buy_rate is a series-wide fraction (40/962) and
+must not be divided by map rounds, and the real pacing payload is keyed
+per MAP (a lotus brief quoting SUMMIT's tempo was wrong); both fixed with
+an explicit evidence scope field.
+Verification: `pytest` 88 passed, 1 skipped; audit clean; PDF rendered
+and vision-checked (layout pass); branch → PR → CI → rebase-merge.
+
 ## Workflow principles (what the story argues)
 
 1. Agents execute; developers decide. Every agent output lands behind a

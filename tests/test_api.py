@@ -117,10 +117,61 @@ def test_brief_pdf():
     assert r.content[:4] == b"%PDF"
 
 
+def test_brief_endpoint_structured_and_honest():
+    """GET /api/brief: severity-ranked insights whose evidence traces to
+    the real aggregates - the lineup insight must quote the exact repeat
+    count the /api/lineups payload reports for the same map."""
+    b = client.get("/api/brief", params={"map": "split"}).json()
+    assert b["insights"] and b["headline"]
+    assert b["source"] == "synthetic"
+    rank = {"critical": 0, "warning": 1, "note": 2}
+    sev = [rank[i["severity"]] for i in b["insights"]]
+    assert sev == sorted(sev), "insights must read top-down by severity"
+    for i in b["insights"]:
+        for k in ("severity", "kind", "title", "detail", "action",
+                  "evidence"):
+            assert k in i, f"brief insight missing {k}"
+        assert i["evidence"]["source"] in ("lineups", "operator", "pacing",
+                                           "atlas", "method")
+        assert i["evidence"]["scope"] in ("map", "series", "method")
+    lus = client.get("/api/lineups", params={"map": "split"}).json()["lineups"]
+    assert lus, "synthetic split carries the sage-wall repeat lineup"
+    top = max((l for l in lus if l["map"] == "split"),
+              key=lambda l: l["repeats"])
+    lu = next(i for i in b["insights"] if i["kind"] == "lineup")
+    assert lu["evidence"]["rounds_seen"] == top["repeats"]
+    assert lu["evidence"]["sample_rounds"] == b["rounds"]
+    # atlas validation is inherited: unknown map 404, bad side 422
+    assert client.get("/api/brief", params={"map": "atlantis"}).status_code == 404
+    assert client.get("/api/brief",
+                      params={"map": "split", "side": "nokia"}).status_code == 422
+
+
+def test_brief_real_mode_shares_snapshot_evidence(monkeypatch):
+    """Real mode: the brief quotes the committed GRID aggregates - the
+    lotus lineup insight must match /api/lineups exactly (e.g. the
+    toxic-screen repeat), never a rounded or invented number."""
+    monkeypatch.setenv("BREACHIQ_DATA", "real")
+    b = client.get("/api/brief", params={"map": "lotus"}).json()
+    assert b["source"] == "real GRID corpus aggregates"
+    assert b["rounds"] > 0 and b["insights"]
+    lus = client.get("/api/lineups", params={"map": "lotus"}).json()["lineups"]
+    top = max((l for l in lus if l["map"] == "lotus"),
+              key=lambda l: l["repeats"])
+    lu = next(i for i in b["insights"] if i["kind"] == "lineup")
+    assert lu["evidence"]["rounds_seen"] == top["repeats"]
+    assert lu["evidence"]["sample_rounds"] == b["rounds"]
+    # the PDF is the same builder: it must render without drift
+    r = client.get("/api/brief.pdf", params={"map": "lotus"})
+    assert r.status_code == 200 and r.content[:4] == b"%PDF"
+    monkeypatch.delenv("BREACHIQ_DATA")
+
+
 def test_no_auth_required_anywhere():
     """Judge-access rule: no credentials may ever be required."""
     for path in ("/health", "/api/meta", "/api/operator", "/api/pacing",
-                 "/api/atlas?map=split", "/api/brief.pdf?map=split"):
+                 "/api/atlas?map=split", "/api/brief?map=split",
+                 "/api/brief.pdf?map=split"):
         r = client.get(path)
         assert r.status_code == 200, f"{path} returned {r.status_code}"
         assert "www-authenticate" not in {k.lower() for k in r.headers}

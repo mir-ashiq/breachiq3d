@@ -1,9 +1,7 @@
 """Feature-layer tests: taxonomy order, hard counts, evidence, operator,
 pacing, counter-briefs, filter rail, and the PDF export."""
-import io
-
 from breachiq import features
-from breachiq.export import build_brief_pdf
+from breachiq.export import build_tactical_pdf
 
 
 class TestTaxonomy:
@@ -85,10 +83,67 @@ class TestFilterEngine:
         assert features.apply_filters({"agent": ["cypher", "killjoy"]}, rec)
 
 
-class TestBriefExport:
-    def test_pdf_export(self):
-        pdf = build_brief_pdf("split vs demo", ["Expect trapwire focus on A"],
-                              {"rounds": 60, "patch": "11.08"})
+def _tactical_inputs():
+    """One map's worth of aggregates: a critical lineup + critical utility
+    focus, a warning-grade Operator habit and a fast A-site tempo."""
+    atlas = {"rounds": 100, "abilities": [
+        {"ability": "toxic-screen", "class": "smoke",
+         "zones": {"a": 40, "b": 10}, "hard_count": "45/100 rounds",
+         "evidence": {}}]}
+    operator = {"players": [
+        {"player": "OXY", "agent": "raze", "operator_buys": 25,
+         "buy_rate": "25/100 rounds", "hold_timing": {},
+         "hold_positions": []}]}
+    lineups = [{"map": "lotus", "ability": "toxic-screen",
+                "repeats": 34, "avg_confidence": 1.0,
+                "aim_azimuth_deg": 82.0}]
+    pacing = {"sites": {"a": {"rounds": 30, "median_utility_to_plant_s": 52.3},
+                        "b": {"rounds": 20, "median_utility_to_plant_s": 71.0}}}
+    return atlas, operator, lineups, pacing
+
+
+class TestTacticalBrief:
+    """features.tactical_brief: the severity-ranked, evidence-carrying
+    anti-strat core. One builder feeds GET /api/brief and /api/brief.pdf,
+    so the dashboard panel and the printed one-pager cannot drift."""
+
+    def test_insights_ranked_and_evidence_carrying(self):
+        b = features.tactical_brief(*_tactical_inputs(), "lotus")
+        rank = features._SEVERITY_ORDER
+        sev = [rank[i["severity"]] for i in b["insights"]]
+        assert sev == sorted(sev), "severity order is a claim: top-down"
+        for i in b["insights"]:
+            for k in ("severity", "kind", "title", "detail", "action",
+                      "evidence", "score"):
+                assert k in i, f"insight missing {k}"
+            ev = i["evidence"]
+            assert ev["source"] in ("lineups", "operator", "pacing",
+                                    "atlas", "method")
+            assert isinstance(ev["rounds_seen"], int)
+            assert isinstance(ev["sample_rounds"], int)
+        # the headline is the top insight - the what-to-do-first line
+        assert b["headline"].startswith(b["insights"][0]["title"])
+
+    def test_lineup_evidence_traces_to_input(self):
+        b = features.tactical_brief(*_tactical_inputs(), "lotus")
+        lu = next(i for i in b["insights"] if i["kind"] == "lineup")
+        assert lu["evidence"]["rounds_seen"] == 34
+        assert lu["evidence"]["confidence"] == 1.0
+        # 34 repeats at full confidence is a critical exploit target
+        assert lu["severity"] == "critical"
+
+    def test_empty_inputs_leave_only_the_method_note(self):
+        b = features.tactical_brief({"rounds": 0, "abilities": []},
+                                    {"players": []}, [], {"sites": {}},
+                                    "lotus")
+        assert [i["kind"] for i in b["insights"]] == ["method"]
+        assert b["headline"], "even the empty view says something honest"
+
+
+class TestTacticalPDF:
+    def test_pdf_renders_structured_brief(self):
+        b = features.tactical_brief(*_tactical_inputs(), "lotus")
+        pdf = build_tactical_pdf(b)
         assert pdf[:4] == b"%PDF"
         assert len(pdf) > 1000
 
