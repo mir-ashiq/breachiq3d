@@ -141,10 +141,39 @@ def test_brief_endpoint_structured_and_honest():
     lu = next(i for i in b["insights"] if i["kind"] == "lineup")
     assert lu["evidence"]["rounds_seen"] == top["repeats"]
     assert lu["evidence"]["sample_rounds"] == b["rounds"]
+    # the utility insight must survive too: a direct-call filter bug once
+    # dropped it from synthetic briefs (fixed with explicit kwargs)
+    assert any(i["kind"] == "utility" for i in b["insights"])
     # atlas validation is inherited: unknown map 404, bad side 422
     assert client.get("/api/brief", params={"map": "atlantis"}).status_code == 404
     assert client.get("/api/brief",
                       params={"map": "split", "side": "nokia"}).status_code == 422
+
+
+def test_lineups_carry_effectiveness_and_evidence_rounds():
+    """Each detected lineup lists its evidence rounds and its outcome
+    linkage: win rate when cast, Wilson 95% range, and the honest-null
+    baseline when no same-scope comparison rounds exist."""
+    r = client.get("/api/lineups", params={"map": "split"}).json()
+    l = r["lineups"][0]
+    assert l["rounds"] and len(l["rounds"]) == l["repeats"]
+    eff = l["effectiveness"]
+    assert eff["sample_rounds"] == l["repeats"]
+    assert eff["wilson_95"]["low"] <= eff["win_rate_when_cast"] \
+        <= eff["wilson_95"]["high"]
+    # the synthetic sage-wall covers every split round: no comparison
+    # pool exists, so the baseline is null - never guessed
+    assert eff["baseline_win_rate"] is None and eff["lift_pp"] is None
+    assert "association" in eff["note"]
+
+
+def test_atlas_points_carry_round_outcome():
+    """The per-cast `won` field (caster's team won the round) is part of
+    the 3A contract: True/False when the outcome is known, None when not."""
+    pts = client.get("/api/atlas", params={"map": "split"}).json()["points"]
+    assert pts, "synthetic atlas serves per-cast points"
+    assert all(p["won"] in (True, False, None) for p in pts)
+    assert any(p["won"] is not None for p in pts)
 
 
 def test_brief_real_mode_shares_snapshot_evidence(monkeypatch):

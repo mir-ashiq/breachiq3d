@@ -70,11 +70,16 @@ def _atlas(data: dict, map_name: str, side: str = "all",
     by_round: dict[int, list[dict]] = {}
     points: list[dict] = []
     bounds = spatial.BOUNDS[map_name]
-    rounds_here = [r for r in data["rounds"]
-                   if r.get("map", map_name) == map_name
+    rounds_here = [r for r in data["rounds"]                   if r.get("map", map_name) == map_name
                    and (not patch or r.get("patch", "") == patch)]
     keep_rounds = {r["round"] for r in rounds_here}
     round_patch = {r["round"]: r.get("patch", "") for r in rounds_here}
+    # tracked-team round outcome (from the synthetic attackers_won field),
+    # for the per-cast `won` contract field; None when outcome is unknown
+    round_won = {r["round"]: ((r["side"] == "attacker")
+                              == bool(r["attackers_won"]))
+                 if r.get("attackers_won") is not None else None
+                 for r in rounds_here}
     for cast in data["casts"]:
         if cast["map"] != map_name or cast["round"] not in keep_rounds:
             continue
@@ -110,7 +115,8 @@ def _atlas(data: dict, map_name: str, side: str = "all",
             round_no=cast.get("round"), quality=state["quality"],
             confidence=entry["confidence"],
             patch=round_patch.get(cast["round"], ""),
-            agent=AGENT_OF.get(cast.get("player_id"), "")))
+            agent=AGENT_OF.get(cast.get("player_id"), ""),
+            won=round_won.get(cast["round"])))
     for r in rounds_here:
         atlas.add_round(by_round.get(r["round"], []), patch=r.get("patch", ""))
     result = atlas.result(matches=len(rounds_here),
@@ -289,6 +295,29 @@ def lineups(map: str = Query("", description="optional map filter"),
                 ability_class=features.ABILITY_CLASS.get(l["ability"], "recon"),
                 bounds=bounds, confidence=l["avg_confidence"])
         out.append(l)
+    # lineup effectiveness: tie each detected lineup to round outcomes -
+    # win rate WITH it vs the team's rate on the same map+side WITHOUT it
+    # (the question flat-map scouts cannot answer). Rounds missing the
+    # outcome field are excluded from both sides, never guessed.
+    rounds_by_key = {f"demo:{r['map']}:{r['round']}": r
+                     for r in data_dict["rounds"]}
+
+    def _won(r: dict) -> bool | None:
+        if r.get("attackers_won") is None:
+            return None
+        return (r["side"] == "attacker") == bool(r["attackers_won"])
+
+    for l in out:
+        keys = set(l.get("rounds") or [])
+        rs = [rounds_by_key[k] for k in keys if k in rounds_by_key]
+        won_list = [w for w in (_won(r) for r in rs) if w is not None]
+        sides = {r["side"] for r in rs}
+        base = [w for r in data_dict["rounds"]
+                if r["map"] == l["map"] and r["side"] in sides
+                and f"demo:{r['map']}:{r['round']}" not in keys
+                for w in [_won(r)] if w is not None]
+        l["effectiveness"] = features.lineup_effectiveness(
+            won_list, base or None)
     return {"lineups": out, "data": "SYNTHETIC demo corpus"}
 
 
@@ -322,7 +351,11 @@ def brief(map: str = Query(..., description="map name"),
     side = _SIDE_ALIASES.get(side, side)
     if side not in ("all", "attacker", "defender"):
         raise HTTPException(422, f"invalid side: {side}")
-    atlas_body = atlas(map=map, side=side, ability="", patch=patch, data=data)
+    # every filter kwarg is passed explicitly: endpoint-to-endpoint calls
+    # that skip one leave the truthy Query() default object in place,
+    # which the cast filters then treat as a real filter value
+    atlas_body = atlas(map=map, side=side, ability="", patch=patch,
+                       player="", agent="", data=data)
     op = operator(data=data)
     lus = lineups(map=map, data=data)["lineups"]
     pac = pacing(data=data)

@@ -140,6 +140,82 @@ class TestTacticalBrief:
         assert b["headline"], "even the empty view says something honest"
 
 
+class TestEvidenceMath:
+    """wilson_interval + lineup_effectiveness: the statistical honesty
+    layer. Rival tools quote raw shares; a 100% rate on 3 rounds is not
+    knowledge, and the interval says so."""
+
+    def test_wilson_pinned_values(self):
+        assert features.wilson_interval(1, 1) == {"low": 0.207, "high": 1.0}
+        assert features.wilson_interval(0, 10) == {"low": 0.0, "high": 0.278}
+        w = features.wilson_interval(400, 1000)
+        assert w == {"low": 0.37, "high": 0.431}  # hugs the 40% share
+        # degenerate inputs are None, never a fabricated range
+        assert features.wilson_interval(0, 0) is None
+        assert features.wilson_interval(5, -2) is None
+
+    def test_lineup_effectiveness_lift(self):
+        eff = features.lineup_effectiveness([True] * 7 + [False] * 3,
+                                            [True] * 5 + [False] * 5)
+        assert eff["rounds_won"] == 7 and eff["sample_rounds"] == 10
+        assert eff["win_rate_when_cast"] == 0.7
+        assert eff["baseline_win_rate"] == 0.5
+        assert eff["lift_pp"] == 20.0
+        lo, hi = eff["wilson_95"]["low"], eff["wilson_95"]["high"]
+        assert lo == 0.397 and hi == 0.892
+        assert "association" in eff["note"]
+
+    def test_lineup_effectiveness_honest_nulls(self):
+        # no comparison rounds -> baseline null, never guessed
+        eff = features.lineup_effectiveness([True, False], None)
+        assert eff["baseline_win_rate"] is None and eff["lift_pp"] is None
+        assert eff["win_rate_when_cast"] == 0.5
+        # no rounds at all -> everything null, still a valid dict
+        eff2 = features.lineup_effectiveness([], [])
+        assert eff2["win_rate_when_cast"] is None
+        assert eff2["wilson_95"] is None and eff2["rounds_won"] == 0
+
+
+class TestBriefEffectiveness:
+    """The brief must let the lineup's own win rate change the coaching
+    call: a repeated lineup that does not convert is bait, not a threat."""
+
+    def _eff(self, won, n, wr, base, lift):
+        return {"rounds_won": won, "sample_rounds": n,
+                "win_rate_when_cast": wr,
+                "wilson_95": {"low": round(wr - 0.1, 3),
+                              "high": round(wr + 0.1, 3)},
+                "baseline_win_rate": base, "baseline_sample_rounds": 180,
+                "lift_pp": lift, "note": "observational"}
+
+    def test_negative_lift_flips_the_call(self):
+        atlas, op, lus, pac = _tactical_inputs()
+        lus[0]["effectiveness"] = self._eff(2, 34, 0.059, 0.5, -44.1)
+        b = features.tactical_brief(atlas, op, lus, pac, "lotus")
+        lu = next(i for i in b["insights"] if i["kind"] == "lineup")
+        assert "does NOT convert" in lu["detail"]
+        assert "Let them have this lineup" in lu["action"]
+        assert lu["severity"] == "warning"   # downgraded from critical
+        assert lu["effectiveness"]["lift_pp"] == -44.1
+
+    def test_positive_lift_escalates_the_deny(self):
+        atlas, op, lus, pac = _tactical_inputs()
+        lus[0]["effectiveness"] = self._eff(24, 34, 0.706, 0.5, 20.6)
+        b = features.tactical_brief(atlas, op, lus, pac, "lotus")
+        lu = next(i for i in b["insights"] if i["kind"] == "lineup")
+        assert "It converts" in lu["detail"] and "+21pp" in lu["detail"]
+        assert lu["severity"] == "critical"  # a winning pattern: deny it
+
+    def test_no_effectiveness_stays_verbal(self):
+        # a snapshot that predates the effectiveness fields must still
+        # produce the plain pre-aim cue, never a crash or a guess
+        atlas, op, lus, pac = _tactical_inputs()
+        b = features.tactical_brief(atlas, op, lus, pac, "lotus")
+        lu = next(i for i in b["insights"] if i["kind"] == "lineup")
+        assert "Pre-aim" in lu["action"]
+        assert lu["effectiveness"] is None and "convert" not in lu["detail"]
+
+
 class TestTacticalPDF:
     def test_pdf_renders_structured_brief(self):
         b = features.tactical_brief(*_tactical_inputs(), "lotus")
@@ -166,8 +242,11 @@ class TestTrajectoryPoint:
         p = self._point()
         assert set(p) == {"u", "v", "u0", "v0", "azimuth", "pitch",
                           "ability", "class", "player", "agent", "round",
-                          "quality", "confidence", "is_estimate", "patch"}
+                          "quality", "confidence", "is_estimate", "patch",
+                          "won"}
         assert p["agent"] == "cypher"    # roster filter + tooltip field
+        assert p["won"] is None          # unknown outcome, never fabricated
+        assert self._point(won=True)["won"] is True
 
     def test_rounding_and_angle_ranges(self):
         p = self._point()

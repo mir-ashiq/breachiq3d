@@ -95,7 +95,8 @@ Response Schema:
       "round": 4,
       "quality": "ok",
       "confidence": 1.0,
-      "is_estimate": true
+      "is_estimate": true,
+      "won": true
     }
   ]
 }
@@ -107,10 +108,17 @@ Coordinates Contract:
 - pitch: Aim vector vertical elevation angle in degrees [-90, +90].
 - player / agent: caster roster identity for the filter rail and tooltip
   (agent empty string when the roster entry is unknown).
+- won: did the caster's team win this round (true/false), or null when the
+  outcome is unknown - never fabricated. Powers the win-rate-when-cast
+  analysis and the replay timeline grouping.
 - is_estimate: true (Required — GRID data contains no landing coordinates).
 
 ### B. GET /api/lineups?map=<map_name>
 Returns repeated utility setups observed across 3 or more rounds.
+Each lineup carries its **evidence rounds** and its **effectiveness**:
+win rate in the rounds where it was cast, vs the team's win rate on the
+same map+side in rounds without it. A lineup that does not convert is
+bait, not a threat - the counter-brief flips its coaching call.
 
 Response Schema:
 {
@@ -120,6 +128,7 @@ Response Schema:
       "map": "split",
       "repeats": 10,
       "total_casts": 10,
+      "rounds": ["demo:split:0", "demo:split:4", "..."],
       "position": {"x": -1500.0, "y": -500.0, "z": 200.0},
       "aim_azimuth_deg": 35.0,
       "avg_confidence": 1.0,
@@ -130,11 +139,26 @@ Response Schema:
         {"x": -1500.0, "y": -500.0, "z": 200.0},
         {"x": -1200.0, "y": -200.0, "z": 450.0},
         {"x": -900.0, "y": 100.0, "z": 150.0}
-      ]
+      ],
+      "effectiveness": {
+        "rounds_won": 10,
+        "sample_rounds": 10,
+        "win_rate_when_cast": 1.0,
+        "wilson_95": {"low": 0.722, "high": 1.0},
+        "baseline_win_rate": null,
+        "baseline_sample_rounds": 0,
+        "lift_pp": null,
+        "note": "observational: win rate with the lineup vs without it on the same map+side; association, not cause"
+      }
     }
   ],
   "data": "real corpus aggregates"
 }
+
+`baseline_win_rate`/`lift_pp` are null when no same-scope comparison
+rounds exist (or until a real-snapshot rebuild adds outcome linkage) -
+never guessed. `lift_pp` is percentage points: win rate when cast minus
+baseline.
 
 ### C. GET /api/operator
 Returns sniper weapon purchase patterns and hold timings per player.
@@ -196,7 +220,11 @@ Response Schema:
 
 Insights are ordered top-down by severity, then coverage; every number
 traces to a committed aggregate (lineups repeats, operator buy_rate,
-pacing medians, atlas hard counts) - no evidence, no insight.
+pacing medians, atlas hard counts) - no evidence, no insight. Lineup
+insights also carry an `effectiveness` object when outcome linkage
+exists, and a lineup whose win rate is 8+pp BELOW its same-scope
+baseline flips the coaching call: severity drops and the action becomes
+"let them have it" instead of "deny it".
 
 ---
 
