@@ -279,6 +279,7 @@ class LineupDetector:
                 "ability": cl["ability"], "map": cl["map"],
                 "repeats": len(cl["rounds"]),
                 "total_casts": cl["n"],
+                "rounds": sorted(cl["rounds"]),
                 "position": {"x": round(cl["x"], 1), "y": round(cl["y"], 1)},
                 "position_z": round(cl["z_sum"] / n, 1),
                 "aim_azimuth_deg": round(cl["az"], 1),
@@ -337,6 +338,55 @@ class RoundOutcomes:
                                   if pistol_next else None),
             "rounds": len(self.rounds),
         }
+
+
+# ------------------------------------------------------------ evidence math
+def wilson_interval(k: int, n: int, z: float = 1.96) -> dict | None:
+    """Wilson score interval (default 95%) for a binomial share k/n.
+
+    The honest way to say "63%": with small samples a raw share pretends
+    a precision the data does not have. Used on lineup conversion,
+    Operator buy share and every win-rate share the brief quotes.
+    Returns {"low": .., "high": ..} rounded to 3dp, or None when n <= 0.
+    """
+    if n <= 0:
+        return None
+    p = k / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = (z * (p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / denom
+    return {"low": round(max(0.0, centre - half), 3),
+            "high": round(min(1.0, centre + half), 3)}
+
+
+def lineup_effectiveness(rounds_won: list[bool],
+                         baseline_won: list[bool] | None) -> dict:
+    """Does the lineup actually win rounds?
+
+    The one question rival scouts cannot answer: they map where utility
+    is thrown, we tie each detected lineup to round outcomes - win rate
+    WITH the lineup vs the team's win rate on the same map+side WITHOUT
+    it. rounds_won carries one bool per round where the lineup appeared;
+    baseline_won one bool per same-scope comparison round (None or empty
+    means no comparison rounds exist - reported as null, never guessed).
+    Observational by construction: association, not cause.
+    """
+    n = len(rounds_won)
+    k = sum(1 for w in rounds_won if w)
+    base = lift = None
+    if baseline_won:
+        base = round(sum(1 for w in baseline_won if w) / len(baseline_won), 3)
+        lift = round(((k / n) if n else 0.0) - base, 3)
+    return {
+        "rounds_won": k, "sample_rounds": n,
+        "win_rate_when_cast": round(k / n, 3) if n else None,
+        "wilson_95": wilson_interval(k, n),
+        "baseline_win_rate": base,
+        "baseline_sample_rounds": len(baseline_won or []),
+        "lift_pp": None if lift is None else round(lift * 100, 1),
+        "note": ("observational: win rate with the lineup vs without it "
+                 "on the same map+side; association, not cause"),
+    }
 
 
 # ---------------------------------------------------------------- briefs
@@ -399,7 +449,10 @@ def tactical_brief(atlas: dict, operator: dict, lineups: list[dict],
         conf = 1.0 if confidence is None else max(0.0, min(1.0, confidence))
         return round(coverage * (0.5 + 0.5 * conf), 4)
 
-    # 1) repeated lineups - the exploit targets (detector floor: 3 rounds)
+    # 1) repeated lineups - the exploit targets (detector floor: 3 rounds).
+    # Effectiveness (with-vs-without round outcomes, same map+side) can
+    # FLIP the coaching call: a repeated lineup that does not convert is
+    # bait to let live, not a threat to spend utility denying.
     for l in sorted((x for x in lineups
                      if x.get("map", map_name) == map_name),
                     key=lambda x: (-int(x.get("repeats") or 0),
@@ -409,17 +462,41 @@ def tactical_brief(atlas: dict, operator: dict, lineups: list[dict],
             continue
         conf = float(l.get("avg_confidence") or 0.0)
         severity = "critical" if (reps >= 10 and conf >= 0.9) else "warning"
+        detail = (f"{l['ability']} is cast from the same spot in "
+                  f"{reps} rounds (aim "
+                  f"{(l.get('aim_azimuth_deg') or 0):.0f} deg).")
+        action = ("Pre-aim the landing spot and deny the line with "
+                  "your own utility before the execute hits.")
+        eff = l.get("effectiveness") or {}
+        wr = eff.get("win_rate_when_cast")
+        if wr is not None:
+            k, n = eff.get("rounds_won"), eff.get("sample_rounds")
+            wil = eff.get("wilson_95") or {}
+            rng = (f", 95% range {wil['low']:.0%}-{wil['high']:.0%}"
+                   if wil else "")
+            lift, base = eff.get("lift_pp"), eff.get("baseline_win_rate")
+            if lift is not None and base is not None and lift <= -8:
+                severity = "warning"
+                detail += (f" It does NOT convert: {wr:.0%} ({k}/{n}{rng}) "
+                           f"vs {base:.0%} without it ({lift:+.0f}pp).")
+                action = ("Let them have this lineup - it does not win "
+                          "their rounds; save the deny utility for the "
+                          "threats that actually convert.")
+            elif lift is not None and base is not None and lift >= 8:
+                detail += (f" It converts: {wr:.0%} ({k}/{n}{rng}) vs "
+                           f"{base:.0%} without it ({lift:+.0f}pp) - "
+                           f"denying it removes a winning pattern.")
+            else:
+                detail += f" Converts at {wr:.0%} ({k}/{n}{rng})."
         insights.append({
             "severity": severity, "kind": "lineup",
             "title": f"Repeated lineup: {l['ability']} x{reps}",
-            "detail": (f"{l['ability']} is cast from the same spot in "
-                       f"{reps} rounds (aim "
-                       f"{(l.get('aim_azimuth_deg') or 0):.0f} deg)."),
-            "action": ("Pre-aim the landing spot and deny the line with "
-                       "your own utility before the execute hits."),
+            "detail": detail,
+            "action": action,
             "evidence": {"rounds_seen": reps, "sample_rounds": rounds,
                          "confidence": round(conf, 2), "source": "lineups",
                          "scope": "map"},
+            "effectiveness": eff or None,
             "score": cov_score(reps, conf),
         })
 
@@ -435,12 +512,15 @@ def tactical_brief(atlas: dict, operator: dict, lineups: list[dict],
         sample = series_rounds or rounds
         if sample:
             share = buys / sample
+            wil = wilson_interval(buys, sample) or {}
+            rng = (f" (95% range {wil['low']:.0%}-{wil['high']:.0%})"
+                   if wil else "")
             insights.append({
                 "severity": "warning" if share >= 0.15 else "note",
                 "kind": "operator",
                 "title": f"{top['player']} buys the Operator ({top['buy_rate']})",
                 "detail": (f"{top['player']} on {top['agent']} buys the Operator "
-                           f"in {buys} of {sample} series rounds."),
+                           f"in {buys} of {sample} series rounds{rng}."),
                 "action": ("Bait the first shot into your prepared hold window "
                            "and trade immediately - the angle is a habit, not "
                            "an accident."),
@@ -558,10 +638,10 @@ def trajectory_point(*, u: float, v: float, u0: float, v0: float,
                      ability: str, ability_class: str, player: str,
                      round_no: int | None, quality: str,
                      confidence: float | None, patch: str = "",
-                     agent: str = "") -> dict:
+                     agent: str = "", won: bool | None = None) -> dict:
     """One per-cast trajectory record in the exact shape docs/GUIDE.md §3A
-    defines for GET /api/atlas points. Single source of truth shared by the
-    synthetic API path (breachiq/api.py) and the real-corpus snapshot
+    defines for GET /api/atlas points. Single source of truth shared by
+    the synthetic API path (breachiq/api.py) and the real-corpus snapshot
     builder (scripts/build_findings.py), so the two modes can never drift.
 
     u0/v0 are the caster's normalized position; u/v the landing ESTIMATE
@@ -573,7 +653,9 @@ def trajectory_point(*, u: float, v: float, u0: float, v0: float,
     normalized to [0, 360) and pitch clamped to [-90, 90] as the contract
     demands; both are None when no aim vector survived quality
     classification. agent carries the caster's agent id for the roster
-    filter rail and the hover tooltip ("" when unknown).
+    filter rail and the hover tooltip ("" when unknown). won carries the
+    round outcome from the caster's team's perspective (True/False), or
+    None when the outcome is unknown - never fabricated.
     """
     clamp01 = lambda x: min(1.0, max(0.0, x))  # noqa: E731 - local for clarity
     return {
@@ -590,4 +672,5 @@ def trajectory_point(*, u: float, v: float, u0: float, v0: float,
         "confidence": None if confidence is None else round(confidence, 3),
         "is_estimate": True,
         "patch": patch,
+        "won": won,
     }

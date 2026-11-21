@@ -99,6 +99,9 @@ def main() -> None:
     # "all" mirrors the density convention: attacker+defender casts only
     points: dict[str, dict[str, list[dict]]] = collections.defaultdict(
         lambda: {"all": [], "attacker": [], "defender": []})
+    # focus-team round records for the lineup-effectiveness join
+    # (keyed by the LineupDetector's evidence round keys)
+    round_records: list[dict] = []
 
     for i, row in enumerate(rows, 1):
         sid = row["series_id"]
@@ -132,6 +135,14 @@ def main() -> None:
                                                            -4000, 4000))
 
         casts_by_round: dict[tuple, list[dict]] = collections.defaultdict(list)
+        # round winners by (game_id, round_no) - feeds the per-cast `won`
+        # contract field; rolled-back games are excluded downstream in the
+        # rounds loop, so mirror that filter here
+        winner_by_round = {}
+        for r in scan["rounds"]:
+            if str(r["game_id"]) in scan.get("rolled_back_games", []):
+                continue
+            winner_by_round[(r["game_id"], r["round_no"])] = r["winner_team"]
         for c in scan["casts"]:
             quality_mix[c["quality"]] += 1
             cls = c["ability_class"]
@@ -178,7 +189,12 @@ def main() -> None:
                     player=pname, round_no=c["round_no"],
                     quality=c["quality"], confidence=landing.confidence,
                     patch=patch_by_game.get(str(c["game_id"]), ""),
-                    agent=players.get(c["player_id"], {}).get("agent", "") or "")
+                    agent=players.get(c["player_id"], {}).get("agent", "") or "",
+                    won=(None if winner_by_round.get(
+                        (c["game_id"], c["round_no"])) is None
+                        else winner_by_round[(c["game_id"], c["round_no"])]
+                        == (players.get(c["player_id"], {}).get("team", "")
+                            or "")))
                 if c["side"] in ("attacker", "defender"):
                     side_pts = points[c["map"]]
                     side_pts["all"].append(pt)
@@ -200,6 +216,10 @@ def main() -> None:
             if side in ("attacker", "defender"):
                 m_sides[side].add_round(casts, patch="")
             won = any(r["winner_team"] == fn for fn in focus_names)
+            if side in ("attacker", "defender"):
+                round_records.append({
+                    "key": f"{sid}:{str(r['game_id'])[:8]}:{r['round_no']}",
+                    "map": r["map"], "side": side, "won": bool(won)})
             outcomes.add_round(round_no=r["round_no"], side=side or "unknown",
                                won=bool(won), win_type=r["win_type"],
                                planted=r["plant_iso"] is not None,
@@ -258,6 +278,19 @@ def main() -> None:
     atlas_result = atlas.result(matches=games_count,
                                 coverage="real GRID corpus (Cloud9 series)")
     lineup_result = lineups.result()
+    # lineup effectiveness: win rate WITH each detected lineup vs the
+    # focus team's rate on the same map+side WITHOUT it - the question
+    # flat-map scouts cannot answer (they have spots, not outcomes).
+    round_by_key = {rec["key"]: rec for rec in round_records}
+    for l in lineup_result:
+        keys = set(l.get("rounds") or [])
+        rs = [round_by_key[k] for k in keys if k in round_by_key]
+        sides = {rec["side"] for rec in rs}
+        base = [rec["won"] for rec in round_records
+                if rec["map"] == l["map"] and rec["side"] in sides
+                and rec["key"] not in keys]
+        l["effectiveness"] = features.lineup_effectiveness(
+            [rec["won"] for rec in rs], base or None)
     outcomes_result = outcomes.result()
     pacing_result = pacing.result()
     op_result = op_fp.result()
@@ -316,13 +349,23 @@ def main() -> None:
       "plays a coach can pre-aim.")
     A("")
     if top_lineups:
-        A("| Ability | Map | Repeats | Cast pos (cm) | Aim azimuth | Avg confidence |")
-        A("|---|---|---|---|---|---|")
+        A("| Ability | Map | Repeats | Cast pos (cm) | Aim azimuth | Avg confidence | Conversion (with vs without) |")
+        A("|---|---|---|---|---|---|---|")
         for l in top_lineups:
+            eff = l.get("effectiveness") or {}
+            conv = "-"
+            if eff.get("win_rate_when_cast") is not None:
+                conv = f"{eff['rounds_won']}/{eff['sample_rounds']} won"
+                if eff.get("baseline_win_rate") is not None:
+                    conv += (f" ({eff['win_rate_when_cast']:.0%} vs "
+                             f"{eff['baseline_win_rate']:.0%} without, "
+                             f"{eff['lift_pp']:+.0f}pp)")
+                else:
+                    conv += f" ({eff['win_rate_when_cast']:.0%}; no comparison rounds)"
             A(f"| {l['ability']} | {l['map']} | {l['repeats']} rounds "
               f"({l['total_casts']} casts) | ({l['position']['x']}, "
               f"{l['position']['y']}) | {l['aim_azimuth_deg']}° | "
-              f"{l['avg_confidence']} |")
+              f"{l['avg_confidence']} | {conv} |")
     else:
         A("_No lineup reached the 3-round repeat threshold._")
     A("")

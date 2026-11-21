@@ -133,6 +133,39 @@ an explicit evidence scope field.
 Verification: `pytest` 88 passed, 1 skipped; audit clean; PDF rendered
 and vision-checked (layout pass); branch → PR → CI → rebase-merge.
 
+### 2026-11-21 — backend: lineup effectiveness (does it win rounds?)
+
+Tool: Z.ai agent (backend track). Trigger: a fresh hackathon-field sweep
+(the weekly dossier refresh) found Category-1 VALORANT rivals grew from
+2 to ~9, with the serious ones shipping Wilson intervals, evidence
+rounds, a league-wide counter tester (Cirrus) and predictive win-chance
+models (NunyaIntel). The evidence-first framing we shipped Nov 19-20 is
+now table stakes.
+Prompt(s): "Start working and make sure we win ... find the participants
+projects and see what they built and make something better then them" -
+recon first (GitHub API sweeps + rival README/commit scans), then the
+differentiator picked from what rivals CANNOT answer: every one of them
+disclaims landing data, and none ties a detected lineup to round
+outcomes.
+What the agent produced: `features.wilson_interval` (95% score intervals
+on every share the brief quotes), `features.lineup_effectiveness` (win
+rate WITH a lineup vs the team's rate on the same map+side WITHOUT it -
+observational, honest-null when no comparison rounds exist), the `won`
+per-cast contract field (3A), evidence round lists on every detected
+lineup (3B), and a counter-brief that flips its coaching call when a
+lineup does not convert (severity downgrade + "let them have it"
+action). Synthetic fixtures gained hash-derived round outcomes with zero
+RNG drift (casts stayed byte-identical). `make findings` extended so the
+real snapshot lights up on the next re-run.
+What we changed by hand: caught a direct-call filter bug from PR #18
+(synthetic briefs silently lost the utility-insight because
+endpoint-to-endpoint calls skipped kwargs and left truthy Query()
+defaults in the filters) - now fixed with explicit kwargs and pinned by
+a regression test.
+Verification: `pytest` 96 passed, 1 skipped; audit clean; COMPETITOR_
+DOSSIER_RESPONSE.md refreshed with the 9-rival field and our
+differentiation; branch -> PR -> CI -> rebase-merge.
+
 ## Workflow principles (what the story argues)
 
 1. Agents execute; developers decide. Every agent output lands behind a

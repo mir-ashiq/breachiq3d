@@ -90,3 +90,74 @@ iteration vs our continuous CI. Neither rival has CI, a license file
 - [x] Category-1 choice re-validated against crowding
 - [x] Real-data parity achieved + lineup detection shipped (Nov 19)
 - [ ] Weekly dossier refresh alongside the red-team re-run
+
+## Update 2026-11-21 (dossier refresh): the field arrived, and it is good
+
+Fresh GitHub sweep (searches across cloud9/jetbrains/valorant/scouting
+terms, pushed >= Nov 14). Category-1 VALORANT current-round rivals went
+from 2 to ~9. LoL Category-2 and event mini-games stay crowded but
+irrelevant to our lane.
+
+### The three that matter
+
+**Cirrus (zuhairhalawa/cirrus-scout, Nov 21)** - the new standard-setter.
+Full corpus (856 series, 2,077 maps, 42,520 rounds, 1.44M casts, 297k
+kills), hosted demo on github.io, CI + license + tests, METHODOLOGY.md.
+Features: plain-language findings with sample sizes, Wilson intervals,
+recurring trap/cam **setups**, **league-wide counter testing** ("select a
+defensive spot, check every round where any..."), evidence rounds with
+one-click 2D replay, self-scout, print brief, vector floor plans traced
+from player positions. Explicitly honest: no landing points (markers are
+player positions), tracking-rate caveats, "association not proof".
+**Gap we hold: no trajectory physics, no landing estimation, no outcome
+linkage per lineup.**
+
+**NunyaIntel (Bryanspirit, Nov 20 push)** - 52 commits, 24 test files.
+New since Nov 19: coach's brief (map veto), **round replay 2D/3D with
+live win-chance**, next-round prediction, "every model tested on matches
+it never saw", key findings ranked by league z-score, anti-eco/pistol
+economy analysis, Docker + doctor CLI. Still no CI, no license, no
+hosted demo. **Gap we hold: no 3D trajectory/landing layer; their
+"3D" is a 2D replay camera.**
+
+**Scopewatch (Divijanand, Nov 21)** - Operator-niche: DuckDB store,
+versioned metric registry, Wilson ranges, typed API envelopes, evidence
+round keys, second teammate onboarding doc. Deep but narrow (Operator
+only); no CI.
+
+Others: scoutscope (demo video, thin data), sentinel-sight (small),
+tellwindow-valorant + agent-ValoLineup (README placeholders), c9-stratlens
+(unchanged, thin), wpsyos (recruitment lane).
+
+### What this changes
+
+The field has caught up on the honesty layer. Wilson intervals, sample
+sizes, evidence rounds and "observational not causal" disclaimers are
+now table stakes among serious rivals - our evidence-first framing is no
+longer unique. What remains uniquely ours: **3D trajectory physics with
+landing estimation** (every rival explicitly disclaims landing data) and
+**outcome-linked lineups**. Neither Cirrus nor NunyaIntel ties a detected
+lineup to round outcomes - they map where utility is thrown; they cannot
+say whether it works.
+
+### Our response (shipped same day)
+
+Lineup **effectiveness**: win rate WITH each detected lineup vs the
+team's rate on the same map+side WITHOUT it, Wilson-calibrated, evidence
+rounds listed per lineup, and a counter-brief that FLIPS its coaching
+call when a lineup does not convert ("let them have it - it does not win
+their rounds") instead of reflexively saying "deny it". Also: `won` per
+per-cast point (3A contract), a fixed utility-insight bug in synthetic
+briefs, and PR #18's severity/evidence engine already covers NunyaIntel's
+coach's-brief counter. Real mode lights up on the next `make findings`
+re-run (builder extended; snapshot schema forward-compatible).
+
+### Updated standing actions
+
+- [x] Weekly dossier refresh (this file, Nov 21)
+- [ ] Track Cirrus's counters/setups features vs our 3D advantage in the
+      next refresh; consider a league-wide counter check once corpus
+      access allows (needs full-corpus scan, not the Cloud9 slice)
+- [ ] NunyaIntel's predictive models: monitor for a deployed demo (none
+      today; our live demo remains the only judge-clickable one with
+      real data)

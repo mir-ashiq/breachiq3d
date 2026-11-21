@@ -10,6 +10,7 @@ flags). Everything it writes is labeled SYNTHETIC.
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -32,6 +33,21 @@ def _unit(theta, pitch):
     z = math.sin(pitch)
     n = math.sqrt(x * x + y * y + z * z)
     return {"x": x / n, "y": y / n, "z": z / n}
+
+
+def _attackers_won(seed: int, r: int, lineup_round: bool, side: str) -> bool:
+    """Deterministic round outcome - a content hash, NOT an RNG draw, so
+    every other fixture number stays pinned. The practiced sage-wall
+    set play (every 4th round) is designed to favor the tracked team's
+    side: labeled synthetic data that exercises the lineup-effectiveness
+    pipeline with a real pattern instead of noise."""
+    h = hashlib.blake2b(f"{seed}|{r}".encode(), digest_size=8).digest()
+    u = int.from_bytes(h, "big") / 2 ** 64
+    if lineup_round:
+        p_attacker = 0.70 if side == "attacker" else 0.30
+    else:
+        p_attacker = 0.52
+    return u < p_attacker
 
 
 def generate_series(seed: int = 7, n_rounds: int = 40) -> dict:
@@ -112,6 +128,7 @@ def generate_series(seed: int = 7, n_rounds: int = 40) -> dict:
             "plant_s": round(float(rng.uniform(20, 45)), 1),
             "first_death_zone": str(rng.choice(["b-heaven", "a-main", "mid-vents", ""])),
             "attacker": str(rng.choice(["TSM", "SEN"])), "patch": "11.08",
+            "attackers_won": _attackers_won(seed, r, r % 4 == 0, side),
             "operator_buyers": operator_buyers,
             "operator_holds": operator_holds,
         })
